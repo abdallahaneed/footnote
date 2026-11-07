@@ -6,6 +6,7 @@ import { NoteScreen } from "../screens/Note";
 import { FolderScreen } from "../screens/Folder";
 import { Trash } from "../screens/Trash";
 import { Templates } from "../screens/Templates";
+import { Calendars } from "../screens/Calendars";
 import { NotFound, STUBS, Stub } from "../screens/Stub";
 import { Sidebar } from "./Sidebar";
 import { Palette } from "./Palette";
@@ -20,6 +21,7 @@ function Screen({ path }: { path: string }) {
   if ((m = match("/folder/:id", path))) return <FolderScreen key={m.id} id={m.id} />;
   if (path === "/trash") return <Trash />;
   if (path === "/templates") return <Templates />;
+  if (path === "/welcome/calendar") return <Calendars />;
   const stub = STUBS.find((s) => match(s.path, path));
   return stub ? <Stub s={stub} /> : <NotFound />;
 }

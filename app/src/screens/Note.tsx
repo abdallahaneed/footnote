@@ -6,7 +6,7 @@ import { ChatBar, GeneratedLine, OwnLine, SlashMenu, StatusChip, Tabs, type Opti
 import { LoadError, Page, WithPanel } from "../app/Layout";
 import { go } from "../app/router";
 import {
-  generateNotes, noteCopyMarkdown, noteEmailDraft, noteGet, noteTrash, noteUpdateOwn, recordingStart, recordingStop, transcriptCopyAll,
+  generateNotes, noteCopyMarkdown, noteEmailDraft, noteGet, noteTrash, noteUpdateOwn, recordingStart, recordingStop, transcriptCopyAll, openExternal,
 } from "../data/api";
 import { useLive } from "../data/store";
 import { clock, dayLabel, duration, liveMs, stageOf, time } from "../data/format";
@@ -78,7 +78,7 @@ export function NoteScreen({ id }: { id: string }) {
               items={[
                 { label: "Copy as Markdown", onSelect: () => copy(noteCopyMarkdown(note.id), "Notes") },
                 { label: "Copy transcript", onSelect: () => copy(transcriptCopyAll(note.id), "Transcript"), disabled: !segments.length },
-                { label: "Email to attendees", onSelect: () => noteEmailDraft(note.id).then((u) => { location.href = u; }, (e: Error) => setError(e.message)) },
+                { label: "Email to attendees", onSelect: () => noteEmailDraft(note.id).then(openExternal).catch((e: Error) => setError(e.message)) },
                 { label: "Move to trash", danger: true, onSelect: () => noteTrash([note.id]).then(() => go("/"), (e: Error) => setError(e.message)) },
               ]} />
           </div>

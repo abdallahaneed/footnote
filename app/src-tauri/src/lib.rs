@@ -1,0 +1,454 @@
+//! Tauri commands. Names and shapes match app/src/data/api.ts. Every command validates its input here,
+//! because the webview is a trust boundary.
+mod calendar;
+mod capture;
+mod chat;
+mod db;
+mod enhance;
+mod jobs;
+mod notes;
+mod stt;
+
+use db::now_ms;
+use jobs::Core;
+use notes::{Folder, Note, Segment, Template};
+use rusqlite::{params, OptionalExtension};
+use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
+use tauri::{ipc::Channel, Emitter, Manager, State};
+
+type R<T> = Result<T, String>;
+struct St(Arc<Core>);
+
+fn err(e: impl std::fmt::Display) -> String {
+    e.to_string()
+}
+
+/// Ids come from the UI: UUIDs, or the short fixed ids of built-in templates.
+fn check_id(id: &str) -> R<()> {
+    if id.is_empty() || id.len() > 64 || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return Err("Unknown id.".into());
+    }
+    Ok(())
+}
+
+fn check_ids(ids: &[String]) -> R<()> {
+    if ids.len() > 1000 {
+        return Err("Too many notes at once.".into());
+    }
+    ids.iter().try_for_each(|i| check_id(i))
+}
+
+/// Runs `f` with the database, then tells the UI to reload.
+fn write<T>(st: &St, f: impl FnOnce(&rusqlite::Connection) -> anyhow::Result<T>) -> R<T> {
+    let out = f(&st.0.db.lock().unwrap()).map_err(err);
+    (st.0.notify)();
+    out
+}
+
+fn read<T>(st: &St, f: impl FnOnce(&rusqlite::Connection) -> anyhow::Result<T>) -> R<T> {
+    f(&st.0.db.lock().unwrap()).map_err(err)
+}
+
+fn note_of(conn: &rusqlite::Connection, id: &str) -> anyhow::Result<Note> {
+    notes::note(conn, id, capture::live, true)
+}
+
+/* Calendar ----------------------------------------------------------------------------------------- */
+
+#[tauri::command(async)]
+fn calendar_upcoming(st: State<St>, days: Option<i64>) -> R<Vec<calendar::Upcoming>> {
+    read(&st, |c| calendar::upcoming(c, now_ms(), days.unwrap_or(14)))
+}
+
+#[tauri::command(async)]
+fn calendar_sources_list(st: State<St>) -> R<Vec<calendar::Source>> {
+    read(&st, calendar::sources)
+}
+
+#[tauri::command(async)]
+fn calendar_add_source(st: State<St>, ics_url: String) -> R<String> {
+    write(&st, |c| {
+        let id = calendar::add_source(c, &ics_url)?;
+        jobs::enqueue(c, "calendar_sync", None, serde_json::json!({ "source": id }), Some(format!("calendar_sync:{id}")))?;
+        Ok(id)
+    })
+}
+
+#[tauri::command(async)]
+fn calendar_source_delete(st: State<St>, id: String) -> R<()> {
+    check_id(&id)?;
+    write(&st, |c| Ok(c.execute("delete from calendar_sources where id = ?1", [&id]).map(|_| ())?))
+}
+
+/* Notes -------------------------------------------------------------------------------------------- */
+
+#[tauri::command(async)]
+fn note_create(st: State<St>) -> R<Note> {
+    write(&st, |c| note_of(c, &notes::create(c, None)?))
+}
+
+#[tauri::command(async)]
+fn note_open_for_event(st: State<St>, event_id: String) -> R<Note> {
+    check_id(&event_id)?;
+    write(&st, |c| note_of(c, &notes::create(c, Some(&event_id))?))
+}
+
+#[tauri::command(async)]
+fn notes_list(st: State<St>, folder_id: Option<String>, deleted: Option<bool>) -> R<Vec<Note>> {
+    if let Some(f) = &folder_id {
+        check_id(f)?;
+    }
+    read(&st, |c| notes::list(c, folder_id.as_deref(), deleted.unwrap_or(false), capture::live))
+}
+
+#[derive(Serialize)]
+struct Bundle {
+    note: Note,
+    segments: Vec<Segment>,
+    templates: Vec<Template>,
+    folders: Vec<Folder>,
+}
+
+#[tauri::command(async)]
+fn note_get(st: State<St>, id: String) -> R<Bundle> {
+    check_id(&id)?;
+    read(&st, |c| Ok(Bundle { note: note_of(c, &id)?, segments: notes::segments(c, &id)?, templates: notes::templates(c)?, folders: notes::folders(c)? }))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OwnPatch {
+    title: Option<String>,
+    own_text: Option<String>,
+    template_id: Option<String>,
+}
+
+#[tauri::command(async)]
+fn note_update_own(st: State<St>, id: String, patch: OwnPatch) -> R<Note> {
+    check_id(&id)?;
+    write(&st, |c| {
+        notes::update_own(c, &id, patch.title.as_deref(), patch.own_text.as_deref(), patch.template_id.as_deref())?;
+        note_of(c, &id)
+    })
+}
+
+/* Recording ---------------------------------------------------------------------------------------- */
+
+#[tauri::command(async)]
+fn recording_start(st: State<St>, id: String) -> R<Note> {
+    check_id(&id)?;
+    let core = st.0.clone();
+    let (base, seq, mic) = read(&st, |c| {
+        let deleted: Option<i64> = c
+            .query_row("select deleted_at from notes where id = ?1", [&id], |r| r.get(0))
+            .optional()?
+            .ok_or_else(|| anyhow::anyhow!("This note no longer exists."))?;
+        anyhow::ensure!(deleted.is_none(), "Restore this note from the trash before recording.");
+        let base = notes::note(c, &id, |_| None, false)?.recorded_ms;
+        let seq: i64 = c.query_row("select coalesce(max(seq) + 1, 0) from audio_segments where note_id = ?1", [&id], |r| r.get(0))?;
+        let mic: Option<String> = c.query_row("select mic_id from settings", [], |r| r.get(0))?;
+        Ok((base, seq, mic))
+    })?;
+    if !capture::is_recording(&id) {
+        let c2 = core.clone();
+        capture::start(&id, core.audio_dir(&id), base, seq, mic, Arc::new(move |nid, s| jobs::on_segment(&c2, nid, s))).map_err(err)?;
+    }
+    write(&st, |c| {
+        c.execute(
+            "update notes set pipeline_status = 'recording', pipeline_error = null, started_at = coalesce(started_at, ?2), updated_at = ?2 where id = ?1",
+            params![id, now_ms()],
+        )?;
+        note_of(c, &id)
+    })
+}
+
+#[tauri::command(async)]
+fn recording_stop(st: State<St>, id: String) -> R<Note> {
+    check_id(&id)?;
+    capture::stop(&id); // waits for the last segment; must not hold the database lock (the writer needs it)
+    write(&st, |c| {
+        c.execute("update notes set pipeline_status = 'saved', ended_at = ?2 where id = ?1 and pipeline_status = 'recording'", params![id, now_ms()])?;
+        jobs::advance(c, &id)?;
+        note_of(c, &id)
+    })
+}
+
+/* Writing notes and transcript --------------------------------------------------------------------- */
+
+#[tauri::command(async)]
+fn generate_notes(st: State<St>, id: String, template_id: Option<String>) -> R<Note> {
+    check_id(&id)?;
+    write(&st, |c| {
+        notes::update_own(c, &id, None, None, template_id.as_deref())?;
+        if !capture::is_recording(&id) {
+            c.execute("update notes set pipeline_status = 'saved' where id = ?1", [&id])?;
+            jobs::advance(c, &id)?;
+        }
+        note_of(c, &id)
+    })
+}
+
+#[tauri::command(async)]
+fn transcript_delete_segment(st: State<St>, seg_id: String) -> R<()> {
+    check_id(&seg_id)?;
+    write(&st, |c| Ok(c.execute("update transcript_segments set deleted = 1 where id = ?1", [&seg_id]).map(|_| ())?))
+}
+
+#[tauri::command(async)]
+fn transcript_copy_all(st: State<St>, id: String) -> R<String> {
+    check_id(&id)?;
+    read(&st, |c| notes::transcript_text(c, &id))
+}
+
+#[tauri::command(async)]
+fn transcript_retry(st: State<St>, id: String) -> R<()> {
+    check_id(&id)?;
+    write(&st, |c| jobs::retranscribe(c, &id))
+}
+
+/* Templates and folders ---------------------------------------------------------------------------- */
+
+#[tauri::command(async)]
+fn templates_list(st: State<St>) -> R<Vec<Template>> {
+    read(&st, notes::templates)
+}
+
+#[tauri::command(async)]
+fn template_save(st: State<St>, template: Template) -> R<Template> {
+    if !template.id.is_empty() {
+        check_id(&template.id)?;
+    }
+    write(&st, |c| notes::template_save(c, &template))
+}
+
+#[tauri::command(async)]
+fn template_delete(st: State<St>, id: String) -> R<()> {
+    check_id(&id)?;
+    write(&st, |c| notes::template_delete(c, &id))
+}
+
+#[tauri::command(async)]
+fn folders_tree(st: State<St>) -> R<Vec<Folder>> {
+    read(&st, notes::folders)
+}
+
+#[derive(Deserialize)]
+struct FolderIn {
+    id: Option<String>,
+    name: String,
+    description: Option<String>,
+}
+
+#[tauri::command(async)]
+fn folder_save(st: State<St>, folder: FolderIn) -> R<Folder> {
+    if let Some(id) = &folder.id {
+        check_id(id)?;
+    }
+    write(&st, |c| {
+        let id = notes::folder_save(c, folder.id.as_deref(), &folder.name, folder.description.as_deref().unwrap_or(""))?;
+        notes::folders(c)?.into_iter().find(|f| f.id == id).ok_or_else(|| anyhow::anyhow!("folder vanished"))
+    })
+}
+
+#[tauri::command(async)]
+fn folder_delete(st: State<St>, id: String) -> R<()> {
+    check_id(&id)?;
+    write(&st, |c| notes::folder_delete(c, &id))
+}
+
+#[tauri::command(async)]
+fn notes_add_to_folder(st: State<St>, ids: Vec<String>, folder_id: String) -> R<()> {
+    check_ids(&ids)?;
+    check_id(&folder_id)?;
+    write(&st, |c| notes::add_to_folder(c, &ids, &folder_id))
+}
+
+#[tauri::command(async)]
+fn notes_remove_from_folder(st: State<St>, ids: Vec<String>, folder_id: String) -> R<()> {
+    check_ids(&ids)?;
+    check_id(&folder_id)?;
+    write(&st, |c| notes::remove_from_folder(c, &ids, &folder_id))
+}
+
+/* Trash -------------------------------------------------------------------------------------------- */
+
+#[tauri::command(async)]
+fn note_trash(st: State<St>, ids: Vec<String>) -> R<()> {
+    check_ids(&ids)?;
+    write(&st, |c| notes::trash(c, &ids, capture::is_recording))
+}
+
+#[tauri::command(async)]
+fn note_restore(st: State<St>, id: String) -> R<()> {
+    check_id(&id)?;
+    write(&st, |c| notes::restore(c, &id))
+}
+
+/// Rows, transcript, generations and the audio files, all gone.
+#[tauri::command(async)]
+fn note_delete_forever(st: State<St>, id: String) -> R<()> {
+    check_id(&id)?;
+    capture::stop(&id);
+    write(&st, |c| notes::delete_forever(c, &id))?;
+    let dir = st.0.audio_dir(&id);
+    if dir.exists() {
+        std::fs::remove_dir_all(dir).map_err(|e| format!("The note is deleted, but its audio files could not be removed: {e}"))?;
+    }
+    Ok(())
+}
+
+/* Share and search --------------------------------------------------------------------------------- */
+
+#[tauri::command(async)]
+fn note_copy_markdown(st: State<St>, id: String) -> R<String> {
+    check_id(&id)?;
+    read(&st, |c| notes::markdown(c, &id))
+}
+
+#[tauri::command(async)]
+fn note_email_draft(st: State<St>, id: String) -> R<String> {
+    check_id(&id)?;
+    read(&st, |c| notes::email_draft(c, &id))
+}
+
+#[derive(Serialize)]
+struct Index {
+    notes: Vec<notes::IndexEntry>,
+    folders: Vec<Folder>,
+}
+
+#[tauri::command(async)]
+fn search(st: State<St>) -> R<Index> {
+    read(&st, |c| Ok(Index { notes: notes::search_index(c)?, folders: notes::folders(c)? }))
+}
+
+#[derive(Serialize)]
+struct ChatResult {
+    citations: Vec<chat::Citation>,
+}
+
+#[tauri::command(async)]
+fn chat_send(st: State<St>, scope_ids: Option<Vec<String>>, text: String, on_token: Channel<String>) -> R<ChatResult> {
+    if let Some(ids) = &scope_ids {
+        check_ids(ids)?;
+    }
+    let text = text.trim().to_string();
+    if text.is_empty() || text.chars().count() > 4000 {
+        return Err("Ask a question of up to 4000 characters.".into());
+    }
+    let (ctx, llm) = read(&st, |c| Ok((chat::context(c, scope_ids.as_deref(), &text)?, jobs::llm(c)?)))?;
+    let citations = chat::answer(&llm, &ctx, &text, |t| on_token.send(t.to_string()).is_ok()).map_err(err)?;
+    Ok(ChatResult { citations })
+}
+
+/* Settings ----------------------------------------------------------------------------------------- */
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Settings {
+    llm_provider: String,
+    llm_url: String,
+    llm_model: String,
+    summary_length: String,
+    audio_retention: String,
+    markdown_mirror_dir: Option<String>,
+    user_name: Option<String>,
+    user_role: Option<String>,
+    user_context: Option<String>,
+    jargon: Vec<String>,
+    languages: Vec<String>,
+}
+
+#[tauri::command(async)]
+fn settings_get(st: State<St>) -> R<Settings> {
+    read(&st, |c| {
+        Ok(c.query_row(
+            "select llm_provider, llm_url, llm_model, summary_length, audio_retention, markdown_mirror_dir, user_name, user_role, user_context, jargon, languages from settings",
+            [],
+            |r| {
+                let (j, l): (String, String) = (r.get(9)?, r.get(10)?);
+                Ok(Settings {
+                    llm_provider: r.get(0)?, llm_url: r.get(1)?, llm_model: r.get(2)?, summary_length: r.get(3)?, audio_retention: r.get(4)?,
+                    markdown_mirror_dir: r.get(5)?, user_name: r.get(6)?, user_role: r.get(7)?, user_context: r.get(8)?,
+                    jargon: serde_json::from_str(&j).unwrap_or_default(), languages: serde_json::from_str(&l).unwrap_or_default(),
+                })
+            },
+        )?)
+    })
+}
+
+#[tauri::command(async)]
+fn settings_update(st: State<St>, s: Settings) -> R<()> {
+    let short = |v: &Option<String>, n: usize| v.as_ref().is_none_or(|x| x.chars().count() <= n);
+    if !(s.llm_url.starts_with("http://") || s.llm_url.starts_with("https://")) || s.llm_url.len() > 500 {
+        return Err("The model address must start with http:// or https://.".into());
+    }
+    if s.llm_model.trim().is_empty() || s.llm_model.len() > 200 {
+        return Err("Enter a model name.".into());
+    }
+    if s.jargon.len() > 30 || s.jargon.iter().any(|j| j.chars().count() > 60) {
+        return Err("Up to 30 words, each under 60 characters.".into());
+    }
+    if s.languages.len() > 10 || !short(&s.user_context, 2000) || !short(&s.user_name, 200) || !short(&s.user_role, 200) {
+        return Err("Some settings are too long.".into());
+    }
+    if let Some(d) = &s.markdown_mirror_dir {
+        if !std::path::Path::new(d).is_dir() {
+            return Err("That folder does not exist.".into());
+        }
+    }
+    // provider, length and retention values are checked by the table's check constraints
+    write(&st, |c| {
+        c.execute(
+            "update settings set llm_provider = ?1, llm_url = ?2, llm_model = ?3, summary_length = ?4, audio_retention = ?5, markdown_mirror_dir = ?6,
+               user_name = ?7, user_role = ?8, user_context = ?9, jargon = ?10, languages = ?11, updated_at = ?12 where id = 1",
+            params![s.llm_provider, s.llm_url.trim(), s.llm_model.trim(), s.summary_length, s.audio_retention, s.markdown_mirror_dir,
+                s.user_name, s.user_role, s.user_context, serde_json::to_string(&s.jargon)?, serde_json::to_string(&s.languages)?, now_ms()],
+        )?;
+        Ok(())
+    })
+}
+
+#[tauri::command(async)]
+fn mic_permission() -> String {
+    capture::mic_permission().to_string()
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            let data = app.path().app_data_dir()?;
+            std::fs::create_dir_all(&data)?;
+            let conn = db::open(&data.join("app.db"))?;
+            jobs::recover(&conn)?;
+            let handle = app.handle().clone();
+            let core = Arc::new(Core { db: Mutex::new(conn), data, notify: Box::new(move || { let _ = handle.emit("changed", ()); }) });
+            jobs::spawn(core.clone());
+            app.manage(St(core));
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            calendar_upcoming, calendar_sources_list, calendar_add_source, calendar_source_delete,
+            note_create, note_open_for_event, notes_list, note_get, note_update_own,
+            recording_start, recording_stop, generate_notes,
+            transcript_delete_segment, transcript_copy_all, transcript_retry,
+            templates_list, template_save, template_delete,
+            folders_tree, folder_save, folder_delete, notes_add_to_folder, notes_remove_from_folder,
+            note_trash, note_restore, note_delete_forever,
+            note_copy_markdown, note_email_draft, search, chat_send,
+            settings_get, settings_update, mic_permission,
+        ])
+        .build(tauri::generate_context!())
+        .expect("error while building the app")
+        .run(|_app, event| {
+            if let tauri::RunEvent::Exit = event {
+                for id in capture::recording_ids() {
+                    capture::stop(&id); // the last segment reaches the disk before quitting
+                }
+                jobs::release_model();
+            }
+        });
+}

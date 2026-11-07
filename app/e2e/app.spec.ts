@@ -217,6 +217,21 @@ test("command palette finds text inside transcripts", async ({ page }) => {
   await expect(page.getByText(/Nothing matches/)).toBeVisible();
 });
 
+test("calendars: link is validated, then listed and removable", async ({ page }) => {
+  await open(page, "/welcome/calendar");
+  const box = page.getByLabel("Calendar link (ICS)");
+  await box.fill("not a link");
+  await page.getByRole("button", { name: "Add calendar" }).click();
+  await expect(page.getByText(/starts with https/)).toBeVisible();
+  await box.fill("webcal://calendar.example.test/me.ics");
+  await page.getByRole("button", { name: "Add calendar" }).click();
+  await expect(page.getByText("calendar.example.test")).toBeVisible();
+  expect(await serious(page)).toEqual([]);
+  await page.screenshot({ path: `${shots}/S02.png` });
+  await page.getByRole("button", { name: "Remove calendar.example.test" }).click();
+  await expect(page.getByText("No calendars yet")).toBeVisible();
+});
+
 test("stub routes exist for every unbuilt screen", async ({ page }) => {
   await open(page, "/settings/preferences");
   await expect(page.getByText("Not built yet")).toBeVisible();

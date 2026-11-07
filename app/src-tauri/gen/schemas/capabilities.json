@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Main window: core events and opening mail drafts and video links","local":true,"windows":["main"],"permissions":["core:default",{"identifier":"opener:allow-open-url","allow":[{"url":"mailto:*"},{"url":"https://*"},{"url":"x-apple.systempreferences:*"}]}]}}

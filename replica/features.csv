@@ -1,40 +1,40 @@
 feature,area,priority,original,clone,notes
 Install on macOS 14+ as a signed notarised app,platform,must,yes,no,S01; notarisation needed for mic and screen-audio permissions
 Install on Windows 10/11,platform,must,yes,no,Windows grants mic automatically
-Local account with no sign-in required,onboarding,must,no,yes,"clone choice: local-first; Granola needs Google/Microsoft/SSO; build: app opens straight to home, no account"
+Local account with no sign-in required,onboarding,must,no,yes,"clone choice: local-first; Granola needs Google/Microsoft/SSO; build: app opens straight to home, no account; backend: no auth by design"
 Sign in with Google for calendar,onboarding,should,yes,no,S01; users may need their own OAuth client ID
 Sign in with Microsoft for calendar,onboarding,should,yes,no,S01; Exchange Online only
-Read OS calendar (EventKit on macOS) or ICS URL,calendar,must,no,no,clone choice that avoids OAuth verification
-Choose which calendars to sync,calendar,must,yes,no,S02 Select all
+Read OS calendar (EventKit on macOS) or ICS URL,calendar,must,no,partial,clone choice that avoids OAuth verification; backend: ICS link with DST-correct recurring events (S02 screen); EventKit not built
+Choose which calendars to sync,calendar,must,yes,partial,S02 Select all; backend: add and remove ICS links; no per-calendar picker
 Request mic and system audio permissions with recovery help,onboarding,must,yes,no,S03; denied state must link to System Settings
 Demo or sample note on first run,onboarding,could,yes,no,S04; write our own content
 Home with Coming up and Your notes,home,must,yes,yes,S05; next 14 days; build: S05
 New ad-hoc note button,notes,must,yes,yes,S05 + New Note; build: S05 + palette command
-Capture microphone audio,capture,must,yes,no,S07
-Capture system audio without a meeting bot,capture,must,yes,no,S07; ScreenCaptureKit or Core Audio tap / WASAPI loopback
-Separate me (mic) and them (system) channels,capture,must,yes,no,S08 bubble sides
+Capture microphone audio,capture,must,yes,partial,S07; backend: cpal capture into 30 s WAV segments built and tested with a replayed WAV; not yet tried with a real mic in the app
+Capture system audio without a meeting bot,capture,must,yes,no,S07; ScreenCaptureKit or Core Audio tap / WASAPI loopback; backend: pipeline takes a second channel; the macOS process tap / Windows loopback source is not written
+Separate me (mic) and them (system) channels,capture,must,yes,partial,S08 bubble sides; backend: two channels transcribed as Me / Them end to end (test WAVs); real system source missing
 Capture only while a note is open,capture,must,yes,no,transcription article
 Recording indicator in the note,capture,must,yes,yes,S07 bars; build: UI done; capture behind it is fake until replica-backend
 Floating live meeting indicator,capture,should,yes,no,S21; toggle in S28
 Stop and resume transcription,capture,must,yes,partial,S08; build: UI and flow done on fake capture
 Auto-stop on call end / 15 min silence / sleep,capture,should,yes,no,F02 edge cases
 Mic selector with Auto,capture,should,yes,partial,"S08; build: selector UI only, not wired to devices"
-Audio stays on device; user sets keep or delete after transcript,privacy,must,yes,no,changed by fixes.md #1: Granola deletes audio; clone keeps it locally so a failed transcript can be re-run
-Live streaming transcript,transcript,must,yes,partial,S08; build: UI streams scripted lines; whisper in replica-backend
-Local speech-to-text,transcript,must,no,no,clone choice: whisper.cpp or similar; Granola uses Deepgram/AssemblyAI
+Audio stays on device; user sets keep or delete after transcript,privacy,must,yes,partial,changed by fixes.md #1: Granola deletes audio; clone keeps it locally so a failed transcript can be re-run; backend: retention 7d/30d/forever/after transcript built; no settings screen
+Live streaming transcript,transcript,must,yes,partial,"S08; build: UI streams scripted lines; whisper in replica-backend; backend: real transcript arrives per 30 s segment, so it lags up to ~35 s"
+Local speech-to-text,transcript,must,no,yes,"clone choice: whisper.cpp or similar; Granola uses Deepgram/AssemblyAI; backend: whisper.cpp base model, downloaded once (60 MB); e2e test passes"
 Speaker labels Me / Them,transcript,must,yes,yes,S08; build: S08 bubbles
 Named speakers for Meet / Zoom / Teams,transcript,could,yes,no,needs diarization or app UI reading
 Copy all transcript,transcript,must,yes,yes,S08; build: S08
 Copy or delete a transcript chunk,transcript,should,yes,yes,S08; changelog Jan 2026; build: S08
 Search inside transcript,transcript,should,yes,yes,S08; build: S08 with highlight
-Personal jargon list for transcription,transcript,should,yes,no,S28 up to 30 terms
+Personal jargon list for transcription,transcript,should,yes,partial,S28 up to 30 terms; backend: passed to whisper as prompt; no settings screen
 Multi-language transcription,transcript,should,yes,no,Granola claims 32 languages
 Rich text editor for own notes,notes,must,yes,partial,S07; build: plain textarea; TipTap not added yet
-Generate enhanced notes from own notes + transcript,enhance,must,yes,partial,S09 core of the product; build: keyword stand-in in src/data/generate.ts; LLM in replica-backend
+Generate enhanced notes from own notes + transcript,enhance,must,yes,partial,"S09 core of the product; build: keyword stand-in in src/data/generate.ts; LLM in replica-backend; backend: real Ollama call with map-reduce and checked [S#] sources; only tested against a stand-in server, Ollama not installed here"
 Own text visually distinct from AI text,enhance,must,yes,yes,S09; build: OwnLine rule + weight
 My notes / Enhanced tabs,enhance,must,yes,yes,S09; build: My notes / Generated
 Regenerate after resume or transcript edit,enhance,should,yes,partial,F04; build: regenerates after resume+stop and on template switch; not automatic after a line delete
-Local LLM via Ollama or llama.cpp,enhance,must,no,no,clone choice: free and private
+Local LLM via Ollama or llama.cpp,enhance,must,no,partial,clone choice: free and private; backend: Ollama and OpenAI-compatible URLs; no settings screen yet
 Bring your own API key for a cloud model,enhance,could,no,no,optional fallback for weak machines
 Templates with sections,templates,must,yes,yes,S13; write our own built-in set; build: four built-ins written fresh
 Apply template with / during the call,templates,must,yes,yes,F05; build: slash menu in own notes
@@ -42,9 +42,9 @@ Switch template after the meeting and regenerate,templates,must,yes,yes,F05; bui
 Create and edit custom templates,templates,must,yes,yes,S13; build: S13
 Default templates by user type,templates,could,yes,no,S27 user type
 Share templates with organisation,templates,could,yes,no,needs sync server
-Chat with one meeting,chat,must,yes,partial,S10; build: S10 UI + streaming; answers from keyword stand-in
+Chat with one meeting,chat,must,yes,partial,"S10; build: S10 UI + streaming; answers from keyword stand-in; backend: real model, streaming over a channel; keyword retrieval"
 Chat during a live meeting,chat,should,yes,no,changelog Jan 2025
-Chat across all meetings,chat,must,yes,partial,F07; needs local embeddings; build: same stand-in; embeddings in replica-backend
+Chat across all meetings,chat,must,yes,partial,F07; needs local embeddings; build: same stand-in; embeddings in replica-backend; backend: keyword retrieval over up to 500 notes; embeddings not built
 Chat scoped to folder or selected notes,chat,should,yes,partial,S10; build: folder scope only
 Chat scoped to person or company,chat,could,yes,no,S18
 Rewrite note sections from chat,chat,should,yes,no,F06; changelog Jul 2025
@@ -67,13 +67,13 @@ Multi-select notes with checkbox and shift-click,organise,should,yes,partial,S05
 Auto-add recurring meetings to folder,organise,should,yes,no,F09
 Sidebar toggle shortcut,organise,should,yes,yes,⌘S / Ctrl+S; build: Cmd/Ctrl+S
 Command palette ⌘K,search,must,yes,yes,S19; build: S19
-Fast full-text search over notes and transcripts,search,must,yes,partial,SQLite FTS5; build: in-memory search over all text; FTS5 in replica-backend
-Offline access,platform,must,yes,partial,local-first by default; build: all local; storage is browser storage until SQLite
+Fast full-text search over notes and transcripts,search,must,yes,partial,SQLite FTS5; build: in-memory search over all text; FTS5 in replica-backend; backend: index sent to the palette; FTS5 table exists but is unused
+Offline access,platform,must,yes,yes,local-first by default; build: all local; storage is browser storage until SQLite; backend: SQLite in the app-data folder; only calendar sync needs the network
 Dark mode,platform,should,yes,partial,changelog Nov 2024; build: follows the system; no manual switch yet (S28)
 Add images to a note,notes,should,yes,no,changelog Nov 2024
 Upload files to a note,notes,could,yes,no,changelog Jun 2025
-Trash with restore and 30-day purge,notes,must,yes,yes,"S22; build: S22, purge on launch"
-Transcript auto-deletion setting,privacy,should,yes,no,S28
+Trash with restore and 30-day purge,notes,must,yes,yes,"S22; build: S22, purge on launch; backend: real: purge job also removes audio files"
+Transcript auto-deletion setting,privacy,should,yes,partial,S28; backend: retention job built; no settings screen
 Meeting notification 1 min before event,detect,must,yes,no,S20; events with 2+ attendees
 Detect ad-hoc calls from mic use,detect,should,yes,no,S20 Meeting / Huddle / Call detected
 Per-app notification toggles,detect,should,yes,no,S29
@@ -110,11 +110,11 @@ SOC 2 / HIPAA / DPA,compliance,skip,yes,skip,company certifications not features
 People and company enrichment (photos / titles / logos),people,skip,yes,skip,needs a paid data vendor
 iOS / Android / Apple Watch apps,platform,skip,yes,skip,outside chosen platforms
 Granola's built-in templates recipes and demo content,content,skip,yes,skip,their content; write our own
-Crash-safe local audio segments written during recording,capture,must,no,partial,fixes.md #1; recording failures 10 reviews; build: UI recovery on launch done; real WAV segments in replica-backend
-Re-run transcription and notes from saved audio,transcript,must,no,partial,fixes.md #1; build: Transcribe again button on fake pipeline
+Crash-safe local audio segments written during recording,capture,must,no,yes,fixes.md #1; recording failures 10 reviews; build: UI recovery on launch done; real WAV segments in replica-backend; backend: segment synced before its row; jobs survive restart; stuck notes finish on launch
+Re-run transcription and notes from saved audio,transcript,must,no,yes,fixes.md #1; build: Transcribe again button on fake pipeline; backend: transcript_retry
 Visible pipeline status per note with Retry on failure,enhance,must,no,yes,"fixes.md #2; review-14632129571; build: status chip on rows and notes, banner with Try again"
-Every enhanced line links to transcript timestamp and plays audio,enhance,must,no,partial,fixes.md #4; hallucination complaints 5 reviews 3 sources; build: jumps to the transcript line; audio playback needs the Rust audio_play_range
+Every enhanced line links to transcript timestamp and plays audio,enhance,must,no,partial,fixes.md #4; hallucination complaints 5 reviews 3 sources; build: jumps to the transcript line; audio playback needs the Rust audio_play_range; backend: sources validated in Rust; audio playback not built
 Summary length switch short / normal / detailed,enhance,should,no,no,fixes.md #5; review-14026182836
-Notes saved as markdown files in a user-chosen folder,notes,must,no,no,fixes.md #6; export paywall complaint
+Notes saved as markdown files in a user-chosen folder,notes,must,no,partial,"fixes.md #6; export paywall complaint; backend: mirror written after each note; folder set only via settings_update, no screen"
 Private-by-default notice and no automatic folder visibility,privacy,should,no,no,fixes.md #7; HN item 44736878
 Meeting duration shown on every note,notes,should,no,yes,fixes.md #8; review-13656690485; build: rows and note header

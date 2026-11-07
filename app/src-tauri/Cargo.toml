@@ -1,0 +1,43 @@
+[package]
+name = "meeting-notes"
+version = "0.0.1"
+description = "Local-first meeting notes"
+authors = ["Abdallah Aneed"]
+edition = "2024"
+
+[lib]
+name = "meeting_notes_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.41.1", features = ["bundled"] }
+whisper-rs = { version = "0.16.0", features = ["metal"] }
+uuid = { version = "1.29.0", features = ["v7"] }
+cpal = "0.18.2"
+hound = "3.5.1"
+anyhow = "1.0.104"
+reqwest = { version = "0.13.5", features = ["blocking", "json"] }
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+chrono-tz = "0.10"
+rrule = "0.14"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6.5"
+objc2-foundation = "0.3.2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
+
+[profile.release.build-override]
+strip = false

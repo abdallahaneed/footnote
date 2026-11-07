@@ -2,3 +2,7 @@ node_modules
 dist
 test-results
 playwright-report
+src-tauri/target
+src-tauri/app-icon.png
+.env*
+!.env.example

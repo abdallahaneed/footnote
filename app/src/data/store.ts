@@ -14,13 +14,19 @@ function load(): DB {
   return seed(Date.now());
 }
 
+// shortcut: loads (and seeds) even in the Tauri app where the fake layer is unused; harmless, a few KB.
 export const db: DB = load();
 const subs = new Set<() => void>();
 
-// Stands in for Tauri events: every write tells mounted screens to reload.
+// Tells mounted screens to reload. The Tauri layer calls it on the core's "changed" event.
+export function notify() {
+  subs.forEach((f) => f());
+}
+
+// Fake layer writes: persist, then reload screens.
 export function commit() {
   try { localStorage.setItem(KEY, JSON.stringify(db)); } catch { /* keeps working in memory */ }
-  subs.forEach((f) => f());
+  notify();
 }
 
 export function subscribe(f: () => void) {

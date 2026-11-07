@@ -32,7 +32,7 @@ export function Home() {
           <h2 id="upcoming-h" className="mb-1 text-sm font-semibold text-muted">Upcoming</h2>
           {events.loading ? <SkeletonRows n={2} />
             : events.error ? <LoadError message={events.error} onRetry={events.retry} />
-            : !events.data?.length ? <p className="px-2 py-3 text-sm text-muted">No meetings in the next two weeks.</p>
+            : !events.data?.length ? <p className="px-2 py-3 text-sm text-muted">No meetings in the next two weeks. <a href="#/welcome/calendar" className="text-accent underline underline-offset-2">Connect a calendar</a></p>
             : groupBy(events.data, (e) => dayLabel(e.startAt)).map(([day, list]) => (
               <section key={day} aria-label={`Meetings ${day}`}>
                 <h3 className="px-2 pb-1 pt-2 text-xs font-semibold text-muted">{day}</h3>

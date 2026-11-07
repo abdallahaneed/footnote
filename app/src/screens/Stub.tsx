@@ -8,7 +8,6 @@ export type StubScreen = { id: string; path: string; name: string; purpose: stri
 
 export const STUBS: StubScreen[] = [
   { id: "S01", path: "/welcome", name: "Welcome", purpose: "First launch. No account needed; explains that everything stays on this computer.", when: "Milestone 1, onboarding" },
-  { id: "S02", path: "/welcome/calendar", name: "Connect a calendar", purpose: "Pick the system calendar or paste an ICS link, then choose which calendars to use.", when: "Milestone 1, onboarding" },
   { id: "S03", path: "/welcome/audio", name: "Microphone and system audio", purpose: "Ask for both permissions, with help when one is denied.", when: "Milestone 1, onboarding" },
   { id: "S04", path: "/welcome/sample", name: "Sample note", purpose: "A short sample meeting to show how notes come together.", when: "Could-have" },
   { id: "S11", path: "/recipes", name: "Saved prompts", purpose: "Browse and search your saved chat prompts.", when: "Should-have" },

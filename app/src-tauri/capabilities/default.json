@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Main window: core events and opening mail drafts and video links",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "mailto:*" }, { "url": "https://*" }, { "url": "x-apple.systempreferences:*" }]
+    }
+  ]
+}
