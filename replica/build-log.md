@@ -1,0 +1,26 @@
+# Build log
+
+App: app/ (React 19 + Vite, Tailwind tokens, Radix primitives). Run: cd app && npm run dev, http://localhost:1430. Tests: npm run test:e2e (22 passing).
+Data layer: app/src/data/api.ts is a fake with the Tauri command names from architecture.md. replica-backend swaps each body for invoke(); no screen changes.
+Error knobs for screenshots: ?fail=<command> (e.g. ?fail=notes_list) or ?fail=enhance before the # in the URL.
+Screenshots: replica/clone-screens/, 1440x900 and 390x844, light and dark. No reference screenshots exist in replica/screens/, so replica-diff has nothing to diff against yet.
+
+| ID | date | status | missing | harder than expected |
+| --- | --- | --- | --- | --- |
+| shell | 2026-11-07 | done | Tauri project (src-tauri) not created yet; belongs with replica-backend | Chromium's scrollIntoView now returns a promise, which broke an arrow-function effect |
+| S05 home | 2026-11-07 | done | shift-click range select; 12-hour times wrap in the meeting row's time column | nothing |
+| S06 sidebar | 2026-11-07 | partial | spaces, subfolders, folder icons, drag and drop | auto-close on note open had to reopen on leaving, or home lost its nav |
+| S07 note, live | 2026-11-07 | partial | rich text (TipTap), images, consent notice, real capture | slash menu needs capture-phase keys so the textarea does not take Enter |
+| S08 transcript | 2026-11-07 | partial | real mic list, named speakers, auto-stop on silence | nothing |
+| S09 note, generated | 2026-11-07 | partial | audio playback behind citations, summary length switch, regenerate right after a line delete, real LLM | nothing |
+| S10 chat | 2026-11-07 | partial | thread history, model picker, file attach, rewrite-into-note, selection scope; answers come from a keyword stand-in | nothing |
+| S13 templates | 2026-11-07 | done | sharing (milestone 3) | nothing |
+| S19 command palette | 2026-11-07 | done | people and companies results (screens not built) | nothing |
+| S22 trash | 2026-11-07 | done | empty-trash-all button | nothing |
+| S23 folder | 2026-11-07 | partial | auto-add recurring meetings, integrations button, share settings | nothing |
+| S01-S04, S11, S12, S14-S18, S20, S21, S24-S38 | 2026-11-07 | stub | routed with a "Not built yet" page naming the milestone | — |
+
+Bigger than it looks:
+1. Everything in the core loop past the UI is fake: capture, whisper, the LLM, audio playback. The slice proves the screens and the flow, not the hard part. architecture.md says to build the capture spike first; that is the next real risk.
+2. Onboarding S01-S03 is a must-have and not built. It depends on real permission and calendar commands, so it waits for replica-backend.
+3. S20 meeting notification is a must-have and needs the Rust notifier and an OS-level window.
