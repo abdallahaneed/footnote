@@ -138,3 +138,21 @@ Evidence: cargo test notes::tests::export_writes_one_file_per_live_note_and_neve
 Suspected cause: duplicate names were checked against a lowercase set, but APFS also treats the two ways of writing accents as one name.
 Fix: ask the file system whether the name exists before writing; a second export in the same minute gets its own folder.
 Status: fixed in 5c09b9d
+
+## Round 3: S20 meeting pop-up (b721afe)
+
+### BUG-009: the pop-up card sits inside a square dark frame
+
+- Severity: S4
+- Flow / case: F02 / F02-E8
+- Screen: S20 (desktop window)
+
+Steps
+1. Desktop app, a meeting with 2+ invitees starting within a minute.
+2. Look at the pop-up top right.
+
+Expected: one clean card.
+Actual: the rounded card with padding around it inside the square, undecorated window, so dark square corners show behind the rounded ones.
+Evidence: screenshot of the real window during the 2026-11-08 run; test "S20-E5 the card fills the pop-up window, so no square frame shows around rounded corners"
+Fix: in the pop-up page the card fills the window: full width, square, no border or shadow.
+Status: fixed in COMMIT

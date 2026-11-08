@@ -9,7 +9,7 @@ import { useLive } from "../data/store";
 import { time } from "../data/format";
 
 export function MeetingPopup({ eventId }: { eventId: string }) {
-  const events = useLive(() => calendarUpcoming(1), []);
+  const events = useLive(() => calendarUpcoming(), []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const ev = events.data?.find((e) => e.id === eventId);
@@ -27,7 +27,8 @@ export function MeetingPopup({ eventId }: { eventId: string }) {
   };
 
   return (
-    <main className="flex min-h-full flex-col gap-2 bg-bg p-2">
+    // the window itself is the card: square, full width, no frame (an undecorated macOS window has square corners)
+    <main className="flex min-h-full flex-col bg-bg [&>section]:w-full! [&>section]:rounded-none [&>section]:border-0 [&>section]:shadow-none">
       {events.loading && !events.data ? <SkeletonRows n={1} />
         : events.error ? <Banner tone="error" action={<Button size="sm" onClick={events.retry}>Try again</Button>}>{events.error}</Banner>
         : !ev ? <Banner tone="info" action={<Button size="sm" onClick={close}>Close</Button>}>This meeting is no longer in your calendar.</Banner>

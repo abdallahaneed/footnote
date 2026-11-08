@@ -316,3 +316,63 @@ test("S28-E5 removing a word does not save the form behind your back", async ({ 
   await expect(page.getByRole("button", { name: "Remove Kafka" })).toHaveCount(0);
   await expect(page.getByRole("alert")).toContainText("must start with http"); // the address error stays shown, nothing else breaks
 });
+
+/* S20 meeting pop-up (build b721afe) */
+
+test("S20-E1 a 60+ character title fits the pop-up and is still readable in full", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 128 });
+  await open(page, "/toast/e-quarterly");
+  const pop = page.getByRole("region", { name: "Meeting: Quarterly planning with the regional sales and marketing leads" });
+  await expect(pop).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await expect(pop.getByRole("button", { name: "Start notes" })).toBeInViewport();
+});
+
+test("S20-E2 Dismiss creates no note", async ({ page }) => {
+  await open(page, "/toast/e-design");
+  await page.getByRole("button", { name: "Dismiss" }).click();
+  await expect(page).toHaveURL(/#\/$/);
+  await expect(page.getByRole("button", { name: /Design review/ })).toHaveCount(1); // the meeting row only
+});
+
+test("S20-E3 Start notes on a meeting that is already recording keeps one note and one recording", async ({ page }) => {
+  await open(page, "/");
+  await page.getByRole("button", { name: /Design review/ }).click();
+  await page.getByRole("button", { name: "Start recording" }).first().click();
+  await expect(page.getByRole("status").filter({ hasText: "Recording" })).toBeVisible();
+  await open(page, "/toast/e-design");
+  await page.getByRole("button", { name: "Start notes" }).click();
+  await expect(page.getByLabel("Note title")).toHaveValue("Design review");
+  await expect(page.getByRole("status").filter({ hasText: "Recording" })).toBeVisible();
+  await page.goto("/#/");
+  await expect(page.getByRole("button", { name: /Design review/ })).toHaveCount(2);
+});
+
+test("S20-N1 recording that cannot start says why and Start notes works again", async ({ page }) => {
+  await open(page, "/toast/e-design", "?fail=recording_start");
+  await page.getByRole("button", { name: "Start notes" }).click();
+  await expect(page.getByRole("alert")).toContainText("Could not reach");
+  await expect(page).toHaveURL(/#\/toast\//);
+  await expect(page.getByRole("button", { name: "Start notes" })).toBeEnabled();
+});
+
+test("S20-E4 a meeting whose old note is in the trash gets a fresh note", async ({ page }) => {
+  await open(page, "/");
+  await page.getByRole("button", { name: /Design review/ }).click();
+  await page.getByLabel("Note title").fill("Old design notes");
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "Move to trash" }).click();
+  await expect(page).toHaveURL(/#\/$/);
+  await open(page, "/toast/e-design");
+  await page.getByRole("button", { name: "Start notes" }).click();
+  await expect(page.getByLabel("Note title")).toHaveValue("Design review");
+});
+
+test("S20-E5 the card fills the pop-up window, so no square frame shows around rounded corners", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 128 });
+  await open(page, "/toast/e-design");
+  const card = page.getByRole("region", { name: "Meeting: Design review" });
+  const box = (await card.boundingBox())!;
+  expect([box.x, box.y, Math.round(box.width)]).toEqual([0, 0, 360]);
+  expect(await card.evaluate((el) => getComputedStyle(el).borderTopLeftRadius)).toBe("0px");
+});

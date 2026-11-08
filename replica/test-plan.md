@@ -61,6 +61,16 @@ Scope: milestone 1 screens that are built (S02 calendar links, S05-S10, S13, S19
 | EXP-N1 | | negative: export fails | ?fail=notes_export | error with reason | e2e edge | pass |
 | EXP-U1 | | unit: file names | Rust export_all: case, accents two ways, slashes, empty and 120-char titles, trashed note, second export into the same folder | one file per live note, nothing overwritten | cargo test | pass after BUG-008 fix |
 | EXP-M1 | | real export in the desktop app, Show in Finder | desktop | | manual | to run |
+| F02-H2 | meeting pop-up (S20) | happy | pop-up for a meeting, Start notes | the meeting's note opens recording; double click makes one note | e2e app | pass |
+| F02-E4 | | edge: 60+ char title at 360x128 | open | fits, Start notes visible, full title in the label | e2e edge | pass |
+| F02-E5 | | edge: Dismiss | click X | no note created | e2e edge | pass |
+| F02-E6 | | edge: meeting already recording | Start notes | same note, one recording | e2e edge | pass |
+| F02-E7 | | edge: old note for the meeting is in the trash | Start notes | a fresh note | e2e edge | pass |
+| F02-E8 | | edge: card vs window | open at window size | card fills the window, square | e2e edge | pass after BUG-009 fix |
+| F02-N3 | | negative: recording cannot start / meeting gone / load error | ?fail=recording_start; unknown id; ?fail=calendar_upcoming | reason shown, Start notes usable again; "no longer in your calendar"; retry | e2e app, edge | pass |
+| F02-U1 | | unit: who gets a pop-up | Rust notify::due: 1 invitee, later, cancelled, just started, long started, already shown, already recording, calendar off | only the right meetings | cargo test | pass |
+| F02-R1 | | real: desktop app, test meeting in 60 s with 2 invitees | insert into the dev database, wait | undecorated always-on-top window top right with title, time, invitees | manual (done 2026-11-08) | pass on the third try, see to-check 7 |
+| F02-M2 | | real: click Start notes and Dismiss in the real window | | recording starts, link opens, main window on the note; Dismiss closes | manual | to run (System Events could not click without accessibility permission) |
 | X-H1 | all screens | a11y and widths | 6 screens x 1440/390 x light/dark | no serious axe issues, no sideways scroll | e2e app | pass |
 | X-E1 | | edge: phone width, keyboard only | ⌘K, New note, type | works, axe clean | e2e edge | pass |
 | X-N1 | | negative: core unreachable | ?fail=notes_list | error with Try again | e2e app | pass |
@@ -84,3 +94,7 @@ Not automatable from Playwright because the browser run uses the fake layer. Run
 4. Whether the Rust `transcript_retry` refuses to start while a pipeline is already running (the UI no longer offers it, but the command does not guard).
 5. Word-list remove buttons have no type="button". Inside a form they would submit it; today React removes the button before the browser submits, and Settings no longer uses a form, so nothing breaks. Add the type if TagInput is used in a form again.
 6. Export with zero notes creates an empty dated folder in Documents. Harmless; could say "Nothing to export" instead.
+7. Real notifier run on 2026-11-08: the first two attempts with a qualifying test meeting showed no pop-up; the third (after a restart) did, and the log showed "1 due" for it. The cause of the first two is not known. Watch for a missing pop-up in daily use.
+8. Pop-ups that open in different 15-second checks stack from the same top position, so a second meeting a minute after the first would cover it. Not reproduced; seen in the code (the offset only counts meetings from one check).
+9. The pop-up opens without focus (on purpose, so it does not steal typing), which means keyboard-only users cannot reach Start notes without the mouse or Cmd+Tab. A global shortcut would fix it.
+10. The pop-up says "Starting now" from about a minute before the start.
