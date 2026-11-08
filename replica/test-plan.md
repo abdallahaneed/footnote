@@ -1,6 +1,6 @@
 # Test plan: meeting-notes clone
 
-Build: dd0bbe2, second round on 797c5af (S03, S28, export), third on b721afe (S20), fourth on 8161809 (S07 rich text editor), plus the fixes in bugs.md  Date: 2026-11-08  Env: local, `npm run dev` (fake data layer, seed data), Chromium 1440px and 390px
+Build: dd0bbe2, second round on 797c5af (S03, S28, export), third on b721afe (S20), fourth on 8161809 (S07 rich text editor), fifth on b2e0a57 (S19 FTS5 search, folder icons), plus the fixes in bugs.md  Date: 2026-11-08  Env: local, `npm run dev` (fake data layer, seed data), Chromium 1440px and 390px
 Specs: app/e2e/app.spec.ts (happy paths, axe, widths), app/e2e/edge.spec.ts (edge and negative cases), app/e2e/design.spec.ts (components). Every spec fails on page errors and console errors; edge.spec.ts also fails on any 5xx response.
 
 Scope: milestone 1 screens that are built (S02 calendar links, S05-S10, S13, S19, S22, S23). F01 sign-in/permissions, F08, F10-F12, F15-F17 hit "Not built yet" stubs and are blocked, not failed.
@@ -36,6 +36,19 @@ Scope: milestone 1 screens that are built (S02 calendar links, S05-S10, S13, S19
 | F05-E2 | | edge: slash menu inside a list item | "- keep me", "/one" Enter | template set, list item kept | e2e edge | pass |
 | F05-E3 | | edge: formatted own notes into generated notes | heading + bold bullet, switch template | own line "budget", no ** or ## | e2e edge | pass |
 | S07-A1 | | screen reader and contrast: editor at 1440/390, light/dark | axe scan | no serious issues, no sideways scroll | e2e app | pass |
+| F13-E2 | | edge: word starts, any order, no accents, where it matched | "cafe reun", "fin quart", "udget", FTS syntax | found; "In your notes: …"; mid-word no match; syntax as words | e2e edge | pass |
+| F13-E3 | | edge: search follows edits, trash and restore | add a word, search, trash, search, restore, search | found, gone, found | e2e edge | pass |
+| F13-E4 | | edge: deleted transcript line | delete line, search its word | not found in transcript | e2e edge | pass |
+| F13-E5 | | edge: keyboard only | type, arrows, Enter | note opens, palette closes | e2e edge | pass |
+| F13-E6 | | edge: 390px, long snippets, screen reader | search "the" | one line each, no sideways scroll, no serious axe issues | e2e edge | pass |
+| F13-E7 | | edge: emoji, punctuation, 600-char query, NUL | 👋, ?!, -, xxx…; Rust: 12 odd queries | no results, no error | e2e edge + Rust | pass after BUG-011 fix |
+| F13-E8 | | edge: typing fast | type, backspace, replace query | only the last query's results | e2e edge | pass |
+| F13-N1 | | negative: core error | ?fail=search_notes | no results, no crash | e2e edge | pass |
+| F09-E1 | folders | edge: double click Save | dblclick | one folder | e2e edge | pass |
+| F09-E2 | | edge: Cancel keeps icon; Enter saves | change icon, Cancel; change, Enter | old icon kept; new icon saved | e2e edge | pass after BUG-012 fix |
+| F09-E3 | | edge: name over 40 characters | 60 x's, Save | says why, dialog stays | e2e edge | pass |
+| S23-E1 | | edge: icon by keyboard, 390px, survives edit and reload | arrows in the icon group | Team checked after edit and reload; no serious axe issues | e2e edge | pass |
+| F09-R1 | | Rust: icon saved, kept on rename, unsafe key refused | folder_save | "users" kept; "<svg…>" refused | Rust | pass |
 | F04-H1 | transcript edit | happy | delete a line | line gone | e2e app | pass |
 | F04-E1 | | edge: deleted line after regenerate | delete, switch template, Copy all | line absent from transcript copy | e2e edge | pass |
 | F04-E2 | | edge: re-run while busy | Transcribe again | no second run or resume offered while transcribing | e2e edge | pass after BUG-004 fix |
@@ -99,6 +112,7 @@ Not automatable from Playwright because the browser run uses the fake layer. Run
 4. F02: system audio from Zoom/Meet as "them" in an interview; echo filter keeps your voice out of their side.
 5. Email to attendees opens the mail app with subject and body; Copy as Markdown pastes cleanly.
 6. Calendar ICS link syncs real events into Upcoming, across a time-zone change.
+8. Search in the desktop app after the 0004 migration: the first search after start indexes every note; it should feel instant, and a word from a transcript recorded today is found.
 7. Own-notes editor in the desktop window (WKWebView, not Chromium): German dead keys (ä via Option-u), Cmd+B/I, Cmd+Z, "- " list, then Cmd+Q right after typing and reopen: the last words are there.
 
 ## To check (seen in code, not reproduced as a user-visible bug)

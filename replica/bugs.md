@@ -174,3 +174,36 @@ Actual: notes and title are empty.
 Evidence: tests "F03-E13 notes typed right before a refresh are saved" and "F03-E14 title typed right before a refresh is saved" (edge.spec.ts), both failed before the fix.
 Suspected cause: saves ran on a 400 ms pause, on blur and on unmount. A refresh or window close runs none of those. Present since the first build (the old textarea had it too). In the desktop app the same gap applies to quitting or closing the window right after typing. Fix: both editors also save on pagehide and when the window is hidden; the fake data layer now applies a command at once and answers 60 ms later, like Tauri IPC, so a save sent while the page unloads lands.
 Status: fixed in 2b321b1
+
+### BUG-011: a search containing a NUL character fails in the core
+
+- Severity: S4 (cannot be typed; only a paste carrying a control character hits it, and the palette then shows nothing)
+- Flow / case: F13 / F13-E7 (Rust: search_odd_queries_never_error)
+- Screen: S19
+- Build: b2e0a57  Device: Rust unit test against SQLite FTS5
+
+Steps
+1. Call search_notes with "a\0b".
+
+Expected: no results, no error.
+Actual: error "unterminated string" from FTS5.
+Evidence: Rust test "search_odd_queries_never_error" (notes.rs), failed before the fix. Emoji, punctuation, AND/OR/NOT, quotes, brackets, CJK and a 1000-character query were already fine.
+Suspected cause: FTS5 reads NUL as the end of the query string, inside the quoted term the core builds.
+Status: fixed in bea0c01 (control characters become spaces before the query is built)
+
+### BUG-012: Enter in the folder dialog does nothing
+
+- Severity: S3 (Save still works by mouse or Tab; keyboard users lose the shortcut every other dialog has)
+- Flow / case: F09 / F09-E2
+- Screen: S06, S23 (folder dialog)
+- Build: b2e0a57  Browser / device: Chromium, 1440px
+
+Steps
+1. Hiring folder > Folder actions > Edit folder.
+2. Pick another icon, put the cursor in Name, press Enter.
+
+Expected: the dialog saves and closes.
+Actual: nothing happens; the dialog stays open.
+Evidence: test "F09-E2 folder dialog: Cancel keeps the old icon; Enter in the name saves the chosen icon" (edge.spec.ts), failed before the fix.
+Suspected cause: the form has two text fields and its Save button sits in the dialog footer, outside the form. Browsers only submit on Enter without a submit button when there is a single field. Present since the description field was added on 2026-11-07, not caused by the icon picker. Fix: Save is a submit button linked with form=, and save ignores a second call while busy.
+Status: fixed in bea0c01
