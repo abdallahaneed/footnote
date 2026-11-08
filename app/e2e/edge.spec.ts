@@ -406,3 +406,165 @@ test("S07 own notes saved as plain lines open as separate lines", async ({ page 
   expect(box!.height).toBeGreaterThan(40); // two lines, not merged into one
   await expect(editor.locator("br, p")).not.toHaveCount(1);
 });
+
+// Round 4: own-notes editor (TipTap, stored as Markdown). Copy as Markdown shows what was saved.
+const typeNotes = async (page: Page, lines: string[]) => {
+  await page.getByRole("textbox", { name: "My notes" }).click();
+  for (const [i, l] of lines.entries()) { if (i) await page.keyboard.press("Enter"); await page.keyboard.type(l); }
+  await page.waitForTimeout(600);
+};
+const copied = async (page: Page) => {
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "Copy as Markdown" }).click();
+  let text = "";
+  await expect.poll(async () => (text = await page.evaluate(() => navigator.clipboard.readText()))).not.toBe("");
+  return text;
+};
+
+test("F03-E5 characters Markdown uses come back exactly as typed", async ({ page }) => {
+  await open(page, "/");
+  await newNote(page);
+  const line = "3 * 4 = 12, a_b_c, #tag, <b>hi</b>, [x](y), 50% off & 1. 2. 3"; // backticks are a code shortcut on purpose
+  await typeNotes(page, [line]);
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "My notes" })).toHaveText(line);
+});
+
+test("F03-E6 blank lines between notes do not save as &nbsp;", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await open(page, "/");
+  await newNote(page);
+  await typeNotes(page, ["first", "", "second"]);
+  const md = await copied(page);
+  expect(md).toContain("first");
+  expect(md).not.toContain("&nbsp;");
+});
+
+test("F03-E7 clearing all notes saves empty and shows the hint again", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await open(page, "/");
+  await newNote(page);
+  await typeNotes(page, ["temp"]);
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Backspace");
+  await page.waitForTimeout(600);
+  await page.reload();
+  const ed = page.getByRole("textbox", { name: "My notes" });
+  await expect(ed).toHaveText("");
+  await expect(ed.locator("[data-placeholder]")).toHaveAttribute("data-placeholder", /Type \/ to pick a template/);
+});
+
+test("F03-E8 pasted plain text with line breaks keeps its lines", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await open(page, "/");
+  await newNote(page);
+  await page.evaluate(() => navigator.clipboard.writeText("one\ntwo\nthree"));
+  await page.getByRole("textbox", { name: "My notes" }).click();
+  await page.keyboard.press("ControlOrMeta+v");
+  await page.waitForTimeout(600);
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "My notes" })).toHaveText(/one\s*two\s*three/);
+  expect((await page.getByRole("textbox", { name: "My notes" }).innerText()).split("\n").filter(Boolean)).toEqual(["one", "two", "three"]);
+});
+
+test("F03-E9 a typed link does not navigate the app when clicked", async ({ page }) => {
+  await open(page, "/");
+  await newNote(page);
+  await typeNotes(page, ["see https://example.com now"]);
+  const url = page.url();
+  await page.getByRole("textbox", { name: "My notes" }).getByRole("link", { name: "https://example.com" }).click();
+  await page.waitForTimeout(300);
+  expect(page.url()).toBe(url);
+  expect(page.context().pages()).toHaveLength(1);
+});
+
+test("F03-E10 keyboard only: Tab leaves the editor when not in a list", async ({ page }) => {
+  await open(page, "/");
+  await newNote(page);
+  await typeNotes(page, ["plain line"]);
+  await page.keyboard.press("Tab");
+  expect(await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).not.toBe("My notes");
+  await expect(page.getByRole("textbox", { name: "My notes" })).toHaveText("plain line");
+});
+
+test("F03-E11 Tab in a list indents the item instead of leaving", async ({ page }) => {
+  await open(page, "/");
+  await newNote(page);
+  await typeNotes(page, ["- parent", "child"]);
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("textbox", { name: "My notes" }).locator("li li")).toHaveText("child");
+});
+
+test("F05-E1 slash menu: Escape closes it and keeps the slash; slash mid-line does not open it", async ({ page }) => {
+  await open(page, "/");
+  await newNote(page);
+  const ed = page.getByRole("textbox", { name: "My notes" });
+  await ed.click();
+  await page.keyboard.type("/");
+  await expect(page.getByRole("listbox", { name: "Insert template or recipe" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(ed).toHaveText("/");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.type("and/or");
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+});
+
+test("F05-E2 slash menu inside a list item picks a template and leaves the item", async ({ page }) => {
+  await open(page, "/");
+  await newNote(page);
+  await typeNotes(page, ["- keep me", "/one"]);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("combobox", { name: "Template" })).toHaveText(/One-on-one/);
+  await expect(page.getByRole("textbox", { name: "My notes" }).getByRole("listitem").first()).toHaveText("keep me");
+});
+
+test("F05-E3 formatted own notes show in generated notes without Markdown marks", async ({ page }) => {
+  await open(page, "/note/n-hiring");
+  await page.getByRole("tab", { name: "My notes" }).click();
+  const ed = page.getByRole("textbox", { name: "My notes" });
+  await ed.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.type("## Agenda");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("- ");
+  await page.keyboard.press("ControlOrMeta+b");
+  await page.keyboard.type("budget");
+  await page.waitForTimeout(600);
+  await page.getByRole("combobox", { name: "Template" }).click();
+  await page.getByRole("option", { name: /Stand-up/ }).click();
+  await page.getByRole("tab", { name: "Generated" }).click();
+  const gen = page.getByRole("article", { name: "Generated notes" });
+  await expect(gen.getByRole("paragraph").filter({ hasText: /^Your note: budget$/ })).toBeVisible({ timeout: 5000 });
+  await expect(gen).not.toContainText("**");
+  await expect(gen).not.toContainText("##");
+});
+
+test("F03-E12 very long notes (2000 lines pasted) save and reopen", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await open(page, "/");
+  await newNote(page);
+  await page.evaluate(() => navigator.clipboard.writeText(Array.from({ length: 2000 }, (_, i) => `line ${i + 1}`).join("\n")));
+  await page.getByRole("textbox", { name: "My notes" }).click();
+  await page.keyboard.press("ControlOrMeta+v");
+  await page.waitForTimeout(800);
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "My notes" })).toContainText("line 2000");
+});
+
+test("F03-E13 notes typed right before a refresh are saved", async ({ page }) => {
+  await open(page, "/");
+  await newNote(page);
+  await page.getByRole("textbox", { name: "My notes" }).click();
+  await page.keyboard.type("typed then refresh");
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "My notes" })).toHaveText("typed then refresh");
+});
+
+test("F03-E14 title typed right before a refresh is saved", async ({ page }) => {
+  await open(page, "/");
+  await newNote(page);
+  await page.getByLabel("Note title").fill("Refresh title");
+  await page.reload();
+  await expect(page.getByLabel("Note title")).toHaveValue("Refresh title");
+});

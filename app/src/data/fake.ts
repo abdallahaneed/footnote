@@ -13,10 +13,14 @@ const uid = () => crypto.randomUUID();
 // ?fail=<command> (or ?fail=all) makes that command throw, ?fail=enhance makes note writing fail, to see error states.
 const fail = new URLSearchParams(location.search).get("fail");
 
+// Like Tauri IPC: the command reaches the core at once (so a save sent as the page unloads still lands), the answer comes later.
 async function call<T>(cmd: string, fn: () => T): Promise<T> {
+  if (fail === cmd || fail === "all") { await wait(60); throw new Error(`Could not reach the app core (${cmd}).`); }
+  let out: T, err: unknown;
+  try { out = structuredClone(fn()); } catch (e) { err = e; } // clone: screens never hold a live reference
   await wait(60);
-  if (fail === cmd || fail === "all") throw new Error(`Could not reach the app core (${cmd}).`);
-  return structuredClone(fn()); // like IPC: screens never hold a live reference
+  if (err) throw err;
+  return out!;
 }
 
 function note(id: string) {

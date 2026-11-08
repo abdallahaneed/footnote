@@ -132,11 +132,21 @@ export function NoteScreen({ id }: { id: string }) {
   );
 }
 
+// Unmount effects do not run on refresh or window close, so pending edits also save when the page hides.
+function useSaveOnHide(save: () => void) {
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === "hidden") save(); };
+    window.addEventListener("pagehide", save);
+    document.addEventListener("visibilitychange", onHide);
+    return () => { window.removeEventListener("pagehide", save); document.removeEventListener("visibilitychange", onHide); save(); };
+  }, []);
+}
+
 function TitleInput({ note }: { note: Note }) {
   const [v, setV] = useState(note.title);
   const latest = useRef({ v, saved: note.title });
   latest.current.v = v;
-  useEffect(() => () => { const l = latest.current; if (l.v !== l.saved) noteUpdateOwn(note.id, { title: l.v }); }, []);
+  useSaveOnHide(() => { const l = latest.current; if (l.v !== l.saved) { l.saved = l.v; noteUpdateOwn(note.id, { title: l.v }); } });
   useEffect(() => {
     if (v === note.title) return;
     const t = setTimeout(() => { latest.current.saved = v; noteUpdateOwn(note.id, { title: v }); }, 400);
@@ -164,7 +174,7 @@ function OwnNotes({ note, templates, onTemplate }: { note: Note; templates: Temp
     if (l.text !== l.saved) { l.saved = l.text; noteUpdateOwn(note.id, { ownText: l.text }); }
   };
   useEffect(() => { const t = setTimeout(save, 400); return () => clearTimeout(t); }, [text]);
-  useEffect(() => save, []);
+  useSaveOnHide(save);
 
   // "/word" alone at the start of a block opens the template menu
   const slashQuery = (ed: Editor) => {

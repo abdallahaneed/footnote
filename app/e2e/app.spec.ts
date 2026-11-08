@@ -239,7 +239,7 @@ test("stub routes exist for every unbuilt screen", async ({ page }) => {
   await expect(page.getByText("This page does not exist.")).toBeVisible();
 });
 
-const SCREENS: [string, string][] = [["S03", "/welcome/audio"], ["S28", "/settings/preferences"], ["S05", "/"], ["S06", "/"], ["S09-seed", "/note/n-hiring"], ["S13-builtin", "/templates"], ["S22-seed", "/trash"], ["S23-seed", "/folder/f-hiring"]];
+const SCREENS: [string, string][] = [["S03", "/welcome/audio"], ["S28", "/settings/preferences"], ["S05", "/"], ["S06", "/"], ["S09-seed", "/note/n-hiring"], ["S07-own", "/note/n-vendor"], ["S13-builtin", "/templates"], ["S22-seed", "/trash"], ["S23-seed", "/folder/f-hiring"]];
 
 for (const [w, h] of [[1440, 900], [390, 844]] as const) {
   for (const scheme of ["light", "dark"] as const) {
