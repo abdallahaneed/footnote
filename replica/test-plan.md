@@ -81,6 +81,6 @@ Not automatable from Playwright because the browser run uses the fake layer. Run
 1. Two browser tabs on the fake layer overwrite each other's localStorage (last write wins). Fake only; the desktop app is one window over SQLite.
 2. Chat keyword match uses `[a-zäöüß]{4,}`, so words with é, ñ, ç are split ("café" never matches in chat; palette search is fine).
 3. Rust `write()` sends the "changed" event even when the command failed: harmless reloads, confirm no flicker.
+4. Whether the Rust `transcript_retry` refuses to start while a pipeline is already running (the UI no longer offers it, but the command does not guard).
 5. Word-list remove buttons have no type="button". Inside a form they would submit it; today React removes the button before the browser submits, and Settings no longer uses a form, so nothing breaks. Add the type if TagInput is used in a form again.
 6. Export with zero notes creates an empty dated folder in Documents. Harmless; could say "Nothing to export" instead.
-4. Whether the Rust `transcript_retry` refuses to start while a pipeline is already running (the UI no longer offers it, but the command does not guard).
