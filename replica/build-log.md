@@ -1,6 +1,6 @@
 # Build log
 
-App: app/ (React 19 + Vite, Tailwind tokens, Radix primitives). Run: cd app && npm run dev, http://localhost:1430. Tests: npm run test:e2e (43 passing on 2026-11-08).
+Name: Footnote (replica/brand.md). App: app/ (React 19 + Vite, Tailwind tokens, Radix primitives). Run: cd app && npm run dev, http://localhost:1430. Tests: npm run test:e2e (43 passing on 2026-11-08).
 Data layer: app/src/data/api.ts is a fake with the Tauri command names from architecture.md. replica-backend swaps each body for invoke(); no screen changes.
 Error knobs for screenshots: ?fail=<command> (e.g. ?fail=notes_list) or ?fail=enhance before the # in the URL.
 Screenshots: replica/clone-screens/, 1440x900 and 390x844, light and dark. No reference screenshots exist in replica/screens/, so replica-diff has nothing to diff against yet.
@@ -25,6 +25,7 @@ Screenshots: replica/clone-screens/, 1440x900 and 390x844, light and dark. No re
 | S07 rich text editor | 2026-11-08 | done | images and file uploads (separate should/could rows); custom marks for own vs generated lines stay in S09 | Playwright's End key does nothing on macOS, so scripted cursor moves need a click on the exact spot; the slash menu needed ProseMirror's handleKeyDown to stop Enter splitting the line |
 | S19 full-text search | 2026-11-08 | done | jump to the matching transcript line; people and companies results | the palette search was synchronous over text sent to the UI; moving it into the core meant an async query with old results kept on screen. Triggers only mark notes stale and Rust rewrites their rows before each search, because transcript writes are spread over several files. Snippets showed Markdown marks until own notes were indexed as plain words |
 | S06/S23 folder icons | 2026-11-08 | done | custom emoji or uploaded icons (16 fixed glyphs instead) | nothing; the column was already in the schema |
+| brand (Footnote) | 2026-11-08 | done | logo, app icon and favicon (brief in brand.md); trademark, handle and .app checks to run; release bundle identifier | the sweep tool does not skip Cargo's target/, and the old folder name was in every build path, so the folder was renamed to ~/Projects/footnote and the 8.3 GB Rust cache cleared; sweep then clean (exit 0). index.html still had the design step's title "Design system" |
 | layout | 2026-11-08 | done | — | main was not a scroll container, so long pages scrolled the whole window and the sidebar went with it |
 | S01, S02 picker, S04, S11, S12, S14-S18, S21, S24-S27, S29-S38 | 2026-11-07 | stub | routed with a "Not built yet" page naming the milestone | — |
 
