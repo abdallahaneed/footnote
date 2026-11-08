@@ -155,4 +155,4 @@ Expected: one clean card.
 Actual: the rounded card with padding around it inside the square, undecorated window, so dark square corners show behind the rounded ones.
 Evidence: screenshot of the real window during the 2026-11-08 run; test "S20-E5 the card fills the pop-up window, so no square frame shows around rounded corners"
 Fix: in the pop-up page the card fills the window: full width, square, no border or shadow.
-Status: fixed in COMMIT
+Status: fixed in 8977d37
