@@ -1,6 +1,6 @@
 # Test plan: meeting-notes clone
 
-Build: dd0bbe2 plus the fixes in bugs.md  Date: 2026-11-08  Env: local, `npm run dev` (fake data layer, seed data), Chromium 1440px and 390px
+Build: dd0bbe2, second round on 797c5af (S03, S28, export), plus the fixes in bugs.md  Date: 2026-11-08  Env: local, `npm run dev` (fake data layer, seed data), Chromium 1440px and 390px
 Specs: app/e2e/app.spec.ts (happy paths, axe, widths), app/e2e/edge.spec.ts (edge and negative cases), app/e2e/design.spec.ts (components). Every spec fails on page errors and console errors; edge.spec.ts also fails on any 5xx response.
 
 Scope: milestone 1 screens that are built (S02 calendar links, S05-S10, S13, S19, S22, S23). F01 sign-in/permissions, F08, F10-F12, F15-F17 hit "Not built yet" stubs and are blocked, not failed.
@@ -43,6 +43,24 @@ Scope: milestone 1 screens that are built (S02 calendar links, S05-S10, S13, S19
 | F14-H1 | trash | happy | trash, restore, delete with typed confirm | works, confirm locked until typed | e2e app | pass |
 | F14-N1 | | negative: selection includes a live recording | select both, Move to trash | error, nothing trashed | e2e edge | pass after BUG-001 fix |
 | F14-N2 | | negative: deleted record by link | trashed id; unknown id | cannot record; "Could not open" with way home | e2e edge | pass |
+| F01-H3 | permissions (S03) | happy: undetermined mic | Allow, Continue | Allowed, note about system audio, home | e2e app | pass |
+| F01-N2 | | negative: denied | Allow | warning with Open System Settings | e2e app | pass |
+| F01-N3 | | negative: status cannot load / request fails | ?fail=permissions_get, ?fail=permission_request | error with reason, Allow stays | e2e edge | pass |
+| F01-E1 | | edge: keyboard only | Tab to Allow, Enter, Continue | works | e2e edge | pass |
+| F01-E2 | | edge: Open System Settings in the browser | click | page stays usable, no errors | e2e edge | pass |
+| F01-M1 | | real macOS prompts, deny then recover in System Settings | desktop | | manual | to run in a signed build |
+| S28-H1 | settings | happy: change provider, address, retention, words | edit, leave, come back | saved on their own, kept | e2e app | pass after BUG-005 fix |
+| S28-E1 | | edge: leave right after a change | pick, Home, back | change kept | e2e edge | pass after BUG-005 fix |
+| S28-E2 | | edge: Transcript only with a half-typed hidden address | type bad address, pick Transcript only | saves | e2e edge | pass after BUG-006 fix |
+| S28-E3 | | edge: 201-char model name | type | message about length | e2e edge | pass after BUG-007 fix |
+| S28-E4 | | edge: word list duplicates, 30 limit | add 31 | duplicate ignored, input locks at 30 | e2e edge | pass |
+| S28-E5 | | edge: remove a word | add, remove | removed, nothing else fires | e2e edge | pass |
+| S28-E6 | | edge: keyboard only | Tab into retention, arrows, Space | saved | e2e app | pass |
+| S28-N1 | | negative: settings cannot load / save fails | ?fail=settings_get, ?fail=settings_update | error with retry; edits kept | e2e edge | pass |
+| EXP-H1 | export all | happy | Export all notes | count; browser explains it cannot write | e2e app | pass |
+| EXP-N1 | | negative: export fails | ?fail=notes_export | error with reason | e2e edge | pass |
+| EXP-U1 | | unit: file names | Rust export_all: case, accents two ways, slashes, empty and 120-char titles, trashed note, second export into the same folder | one file per live note, nothing overwritten | cargo test | pass after BUG-008 fix |
+| EXP-M1 | | real export in the desktop app, Show in Finder | desktop | | manual | to run |
 | X-H1 | all screens | a11y and widths | 6 screens x 1440/390 x light/dark | no serious axe issues, no sideways scroll | e2e app | pass |
 | X-E1 | | edge: phone width, keyboard only | ⌘K, New note, type | works, axe clean | e2e edge | pass |
 | X-N1 | | negative: core unreachable | ?fail=notes_list | error with Try again | e2e app | pass |
@@ -63,4 +81,6 @@ Not automatable from Playwright because the browser run uses the fake layer. Run
 1. Two browser tabs on the fake layer overwrite each other's localStorage (last write wins). Fake only; the desktop app is one window over SQLite.
 2. Chat keyword match uses `[a-zäöüß]{4,}`, so words with é, ñ, ç are split ("café" never matches in chat; palette search is fine).
 3. Rust `write()` sends the "changed" event even when the command failed: harmless reloads, confirm no flicker.
+5. Word-list remove buttons have no type="button". Inside a form they would submit it; today React removes the button before the browser submits, and Settings no longer uses a form, so nothing breaks. Add the type if TagInput is used in a form again.
+6. Export with zero notes creates an empty dated folder in Documents. Harmless; could say "Nothing to export" instead.
 4. Whether the Rust `transcript_retry` refuses to start while a pipeline is already running (the UI no longer offers it, but the command does not guard).

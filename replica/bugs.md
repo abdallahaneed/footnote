@@ -73,3 +73,68 @@ Status: fixed in 26eeac6
 ## To check
 
 See the "To check" list at the end of replica/test-plan.md. Nothing there was reproduced as a user-visible bug.
+
+## Round 2: S03, S28, export (797c5af)
+
+### BUG-005: settings changes vanish when you leave the page without pressing Save
+
+- Severity: S3 (the change is silently gone; workaround: come back and redo it, then Save)
+- Flow / case: S28 / S28-E1
+- Screen: S28
+
+Steps
+1. Settings, pick "Keep for 30 days".
+2. Click Home in the sidebar, then Settings again.
+
+Expected: "Keep for 30 days" is still picked.
+Actual: back to the old value. Nothing said the change was not saved.
+Evidence: test "S28-E1 unsaved settings are not lost silently when leaving"
+Fix: Settings save on their own 600 ms after a change and when the page closes, like notes. The Save and Discard buttons are gone.
+Status: fixed in COMMIT
+
+### BUG-006: "Transcript only" cannot be saved while the hidden model address is invalid
+
+- Severity: S3 (workaround: switch back, fix the address, switch again)
+- Flow / case: S28 / S28-E2
+- Screen: S28
+
+Steps
+1. Settings, type "nonsense" as the model address.
+2. Pick "Transcript only" (the address field disappears), Save.
+
+Expected: saved.
+Actual: error "The model address must start with http:// or https://." about a field you can no longer see.
+Evidence: test "S28-E2 Transcript only saves even if the hidden model address was invalid"
+Fix: with Transcript only, the last saved address and model are sent instead of the hidden half-typed ones.
+Status: fixed in COMMIT
+
+### BUG-007: a model name that is too long gets the message "Enter a model name."
+
+- Severity: S4
+- Flow / case: S28 / S28-E3
+- Screen: S28
+
+Steps
+1. Settings, paste a 201-character model name, Save.
+
+Expected: a message about the length.
+Actual: "Enter a model name." (same in the Rust core).
+Evidence: test "S28-E3 a 201-character model name gets a message about length"
+Status: fixed in COMMIT (fake and Rust)
+
+### BUG-008: export overwrites a note whose title looks the same to macOS
+
+- Severity: S2 (export is the backup; a note silently missing from it, no warning)
+- Flow / case: export / EXP-U1
+- Screen: S28, Rust notes_export
+
+Steps
+1. Two notes titled "Café", one typed (é as one character) and one pasted from a file name (e plus an accent mark), same day.
+2. Settings > Export all notes.
+
+Expected: two files.
+Actual: one file; the second note overwrote the first. Same for two exports started in the same minute (same folder name).
+Evidence: cargo test notes::tests::export_writes_one_file_per_live_note_and_never_overwrites (left 6, right 7)
+Suspected cause: duplicate names were checked against a lowercase set, but APFS also treats the two ways of writing accents as one name.
+Fix: ask the file system whether the name exists before writing; a second export in the same minute gets its own folder.
+Status: fixed in COMMIT

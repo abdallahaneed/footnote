@@ -223,3 +223,96 @@ test("X-E1 390px keyboard only: palette, new note, type; no axe issues, no sidew
   expect(violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+/* S03 permissions, S28 settings, export (build 797c5af) */
+
+test("S28-E1 unsaved settings are not lost silently when leaving", async ({ page }) => {
+  await open(page, "/settings/preferences");
+  await page.getByRole("radio", { name: /Keep for 30 days/ }).click();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Home" }).click();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Settings" }).click();
+  await expect(page.getByRole("radio", { name: /Keep for 30 days/ })).toBeChecked();
+});
+
+test("S28-E2 Transcript only saves even if the hidden model address was invalid", async ({ page }) => {
+  await open(page, "/settings/preferences");
+  await page.getByLabel("Model address").fill("nonsense");
+  await page.getByRole("radio", { name: /Transcript only/ }).click();
+  await expect(page.getByText("Saved.")).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
+test("S28-E3 a 201-character model name gets a message about length", async ({ page }) => {
+  await open(page, "/settings/preferences");
+  await page.getByLabel("Model name").fill("m".repeat(201));
+  await expect(page.getByRole("alert")).toContainText(/too long|characters/);
+});
+
+test("S28-E4 word list: duplicates ignored, stops at 30", async ({ page }) => {
+  await open(page, "/settings/preferences");
+  const box = page.getByLabel("Words to spell right");
+  for (const w of ["Kafka", "kafka", ...Array.from({ length: 29 }, (_, i) => `w${i}`)]) { await box.fill(w); await box.press("Enter"); }
+  await expect(page.getByText("30/30")).toBeVisible();
+  await expect(box).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Remove kafka/i })).toHaveCount(1);
+});
+
+test("S28-N1 settings that cannot load offer a retry", async ({ page }) => {
+  await open(page, "/settings/preferences", "?fail=settings_get");
+  await expect(page.getByRole("alert").first()).toContainText("Could not reach");
+  await expect(page.getByRole("button", { name: "Try again" }).first()).toBeVisible();
+});
+
+test("S28-N2 a failed save keeps the edits and says why", async ({ page }) => {
+  await open(page, "/settings/preferences", "?fail=settings_update");
+  await page.getByRole("radio", { name: /Keep for 7 days/ }).click();
+  await expect(page.getByRole("alert")).toContainText("Could not reach");
+  await expect(page.getByRole("radio", { name: /Keep for 7 days/ })).toBeChecked();
+});
+
+test("S28-N3 a failed export says why", async ({ page }) => {
+  await open(page, "/settings/preferences", "?fail=notes_export");
+  await page.getByRole("button", { name: "Export all notes" }).click();
+  await expect(page.getByRole("alert")).toContainText("Could not reach");
+});
+
+test("S03-N1 permissions that cannot load offer a retry", async ({ page }) => {
+  await open(page, "/welcome/audio", "?fail=permissions_get");
+  await expect(page.getByRole("alert").first()).toContainText("Could not reach");
+});
+
+test("S03-N2 a failed request shows the reason and keeps Allow", async ({ page }) => {
+  await open(page, "/welcome/audio", "?perm=undetermined&fail=permission_request");
+  await page.getByRole("button", { name: "Allow" }).first().click();
+  await expect(page.getByRole("alert").first()).toContainText("Could not reach");
+  await expect(page.getByRole("button", { name: "Allow" }).first()).toBeVisible();
+});
+
+test("S03-E1 keyboard only: Tab to Allow, Enter, Continue", async ({ page }) => {
+  await open(page, "/welcome/audio", "?perm=undetermined");
+  await expect(page.getByRole("button", { name: "Allow" }).first()).toBeVisible();
+  for (let i = 0; i < 30 && (await page.evaluate(() => document.activeElement?.textContent)) !== "Allow"; i++) await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Allowed").first()).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/#\/$/);
+});
+
+test("S03-E2 Open System Settings in the browser preview does not break the page", async ({ page }) => {
+  await open(page, "/welcome/audio", "?perm=denied");
+  await page.getByRole("button", { name: "Allow" }).first().click();
+  await page.getByRole("button", { name: "Open System Settings" }).first().click();
+  await expect(page.getByRole("heading", { name: "Microphone and system audio" })).toBeVisible();
+});
+
+test("S28-E5 removing a word does not save the form behind your back", async ({ page }) => {
+  await open(page, "/settings/preferences");
+  await page.getByLabel("Model address").fill("nonsense");
+  const box = page.getByLabel("Words to spell right");
+  await box.fill("Kafka");
+  await box.press("Enter");
+  await page.getByRole("button", { name: "Remove Kafka" }).click();
+  await expect(page.getByRole("button", { name: "Remove Kafka" })).toHaveCount(0);
+  await expect(page.getByRole("alert")).toContainText("must start with http"); // the address error stays shown, nothing else breaks
+});

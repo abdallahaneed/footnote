@@ -384,8 +384,11 @@ fn settings_update(st: State<St>, s: Settings) -> R<()> {
     if !(s.llm_url.starts_with("http://") || s.llm_url.starts_with("https://")) || s.llm_url.len() > 500 {
         return Err("The model address must start with http:// or https://.".into());
     }
-    if s.llm_model.trim().is_empty() || s.llm_model.len() > 200 {
+    if s.llm_model.trim().is_empty() {
         return Err("Enter a model name.".into());
+    }
+    if s.llm_model.len() > 200 {
+        return Err("Keep the model name under 200 characters.".into());
     }
     if s.jargon.len() > 30 || s.jargon.iter().any(|j| j.chars().count() > 60) {
         return Err("Up to 30 words, each under 60 characters.".into());
@@ -445,23 +448,13 @@ struct Export {
 fn notes_export(st: State<St>) -> R<Export> {
     let home = std::env::var("HOME").map_err(|_| "Could not find your home folder.".to_string())?;
     let stamp = chrono::Local::now().format("%Y-%m-%d %H%M");
-    let dir = std::path::Path::new(&home).join("Documents").join(format!("Meeting notes {stamp}"));
+    let base = std::path::Path::new(&home).join("Documents");
+    let mut dir = base.join(format!("Meeting notes {stamp}"));
+    let mut n = 2;
+    while dir.exists() { dir = base.join(format!("Meeting notes {stamp} ({n})")); n += 1; } // two exports in one minute get two folders
     read(&st, |c| {
-        let rows: Vec<(String, String, i64)> = c
-            .prepare("select id, title, created_at from notes where deleted_at is null order by created_at")?
-            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
-            .collect::<Result<_, _>>()?;
-        std::fs::create_dir_all(&dir)?;
-        let mut used = std::collections::HashSet::new();
-        for (id, title, at) in &rows {
-            let day = chrono::DateTime::from_timestamp_millis(*at).map(|d| d.with_timezone(&chrono::Local).format("%Y-%m-%d").to_string()).unwrap_or_default();
-            let safe: String = notes::title_of(title).chars().map(|ch| if "/\\:*?\"<>|".contains(ch) || ch.is_control() { '-' } else { ch }).take(80).collect();
-            let mut name = format!("{day} {}", safe.trim());
-            let mut n = 2;
-            while !used.insert(name.to_lowercase()) { name = format!("{day} {} ({n})", safe.trim()); n += 1; }
-            std::fs::write(dir.join(format!("{name}.md")), notes::markdown(c, id)?)?;
-        }
-        Ok(Export { dir: dir.to_string_lossy().into(), count: rows.len() })
+        let count = notes::export_all(c, &dir)?;
+        Ok(Export { dir: dir.to_string_lossy().into(), count })
     })
 }
 

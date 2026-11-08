@@ -1,5 +1,5 @@
 // S28 settings: how notes get written, what happens to audio, words to spell right, export everything.
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Banner, Button, PageHeader, RadioCards, SelectMenu, SkeletonRows, TextInput } from "../ui/base";
 import { TagInput } from "../ui/notes";
 import { LoadError, Page } from "../app/Layout";
@@ -34,20 +34,29 @@ export function Settings() {
   const [s, setS] = useState<S>();
   const [error, setError] = useState<string>();
   const [msg, setMsg] = useState("");
-  const [saving, setSaving] = useState(false);
   const [exp, setExp] = useState<{ dir: string; count: number } | { error: string }>();
   const [exporting, setExporting] = useState(false);
   useEffect(() => { if (live.data && !s) setS(live.data); }, [live.data]);
   useEffect(() => { if (!msg) return; const t = setTimeout(() => setMsg(""), 2500); return () => clearTimeout(t); }, [msg]);
 
-  const dirty = !!s && JSON.stringify(s) !== JSON.stringify(live.data);
+  // Saves on its own, like notes: 600 ms after the last change and when leaving the page.
+  const saved = useRef<S>(undefined);
+  const pending = useRef<S>(undefined);
+  if (live.data && !saved.current) saved.current = live.data;
   const set = <K extends keyof S>(k: K, v: S[K]) => setS((p) => p && { ...p, [k]: v });
-  const save = async () => {
-    if (!s) return;
-    setSaving(true);
-    try { await settingsUpdate(s); setError(undefined); setMsg("Saved."); } catch (e) { setError(String((e as Error).message ?? e)); }
-    setSaving(false);
+  const save = async (x: S) => {
+    pending.current = undefined;
+    // with "Transcript only" the model fields are hidden, so a half-typed address there must not block saving
+    const out = x.llmProvider === "none" && saved.current ? { ...x, llmUrl: saved.current.llmUrl, llmModel: saved.current.llmModel } : x;
+    try { await settingsUpdate(out); saved.current = out; setError(undefined); setMsg("Saved."); } catch (e) { setError(String((e as Error).message ?? e)); }
   };
+  useEffect(() => {
+    if (!s || JSON.stringify(s) === JSON.stringify(saved.current)) return;
+    pending.current = s;
+    const t = setTimeout(() => save(s), 600);
+    return () => clearTimeout(t);
+  }, [s]);
+  useEffect(() => () => { if (pending.current) save(pending.current); }, []);
   const exportAll = async () => {
     setExporting(true);
     try { setExp(await notesExport()); } catch (e) { setExp({ error: String((e as Error).message ?? e) }); }
@@ -56,11 +65,12 @@ export function Settings() {
 
   return (
     <Page>
-      <PageHeader title="Settings" />
+      <PageHeader title="Settings" description="Changes save on their own." actions={<span role="status" className="text-sm text-muted">{msg}</span>} />
+      {error && <div className="mb-4"><Banner tone="error">{error}</Banner></div>}
       {live.loading && !s ? <SkeletonRows n={6} />
         : live.error && !s ? <LoadError message={live.error} onRetry={live.retry} />
         : s && (
-          <form onSubmit={(e) => { e.preventDefault(); save(); }}>
+          <div>
             <Section title="Note writing">
               <RadioCards label="Who writes the notes" value={s.llmProvider} onChange={(v) => set("llmProvider", v)} options={PROVIDERS} />
               {s.llmProvider !== "none" && (
@@ -85,13 +95,7 @@ export function Settings() {
               <TagInput label="Words to spell right" tags={s.jargon} onChange={(t) => set("jargon", t)} max={30} />
             </Section>
 
-            <div className="sticky bottom-0 -mx-4 mb-8 flex flex-wrap items-center gap-3 border-t border-border bg-bg px-4 py-3 md:-mx-6 md:px-6">
-              <Button type="submit" variant="primary" loading={saving} disabled={!dirty}>Save</Button>
-              {dirty && <Button type="button" variant="ghost" onClick={() => { setS(live.data); setError(undefined); }}>Discard changes</Button>}
-              <span role="status" className="text-sm text-muted">{msg}</span>
-              {error && <div className="w-full"><Banner tone="error">{error}</Banner></div>}
-            </div>
-          </form>
+          </div>
         )}
 
       <Section title="Your data">

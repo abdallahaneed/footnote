@@ -378,7 +378,8 @@ let settings: Settings = {
 export const settingsGet = () => call("settings_get", () => settings);
 export const settingsUpdate = (s: Settings) => call("settings_update", () => {
   if (!/^https?:\/\//.test(s.llmUrl) || s.llmUrl.length > 500) throw new Error("The model address must start with http:// or https://.");
-  if (!s.llmModel.trim() || s.llmModel.length > 200) throw new Error("Enter a model name.");
+  if (!s.llmModel.trim()) throw new Error("Enter a model name.");
+  if (s.llmModel.length > 200) throw new Error("Keep the model name under 200 characters.");
   if (s.jargon.length > 30 || s.jargon.some((j) => j.length > 60)) throw new Error("Up to 30 words, each under 60 characters.");
   settings = { ...s, llmUrl: s.llmUrl.trim(), llmModel: s.llmModel.trim() };
   commit();

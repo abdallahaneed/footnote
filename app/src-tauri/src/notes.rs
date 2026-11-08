@@ -469,12 +469,55 @@ pub fn search_index(conn: &Connection) -> anyhow::Result<Vec<IndexEntry>> {
     Ok(rows.collect::<Result<_, _>>()?)
 }
 
+/// Every note not in the trash as "<day> <title>.md" in `dir`. Returns how many were written.
+pub fn export_all(conn: &Connection, dir: &std::path::Path) -> anyhow::Result<usize> {
+    let rows: Vec<(String, String, i64)> = conn
+        .prepare("select id, title, created_at from notes where deleted_at is null order by created_at")?
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+        .collect::<Result<_, _>>()?;
+    std::fs::create_dir_all(dir)?;
+    for (id, title, at) in &rows {
+        let day = chrono::DateTime::from_timestamp_millis(*at).map(|d| d.with_timezone(&chrono::Local).format("%Y-%m-%d").to_string()).unwrap_or_default();
+        let safe: String = title_of(title).chars().map(|ch| if "/\\:*?\"<>|".contains(ch) || ch.is_control() { '-' } else { ch }).take(80).collect();
+        // ask the file system, not a set of names: APFS treats case and the two ways of writing accents as the same name
+        let mut path = dir.join(format!("{day} {}.md", safe.trim()));
+        let mut n = 2;
+        while path.exists() { path = dir.join(format!("{day} {} ({n}).md", safe.trim())); n += 1; }
+        std::fs::write(path, markdown(conn, id)?)?;
+    }
+    Ok(rows.len())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::db::mem;
 
     fn none(_: &str) -> LiveInfo { None }
+
+    #[test]
+    fn export_writes_one_file_per_live_note_and_never_overwrites() {
+        let c = mem();
+        let titles = ["Plan", "plan", "a/b: c?", "", "Caf\u{e9}", "Cafe\u{301}", &"x".repeat(120)];
+        let ids: Vec<String> = titles.iter().map(|t| { let id = create(&c, None).unwrap(); update_own(&c, &id, Some(t), Some("body"), None).unwrap(); id }).collect();
+        let gone = create(&c, None).unwrap();
+        update_own(&c, &gone, Some("Trashed one"), None, None).unwrap();
+        trash(&c, &[gone], |_| false).unwrap();
+
+        let dir = std::env::temp_dir().join(format!("export-test-{}", uuid::Uuid::now_v7()));
+        assert_eq!(export_all(&c, &dir).unwrap(), ids.len());
+        let names: Vec<String> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        // one file per note even where the file system treats names as equal (case, accents written two ways)
+        assert_eq!(names.len(), ids.len(), "{names:?}");
+        assert!(names.iter().all(|n| n.ends_with(".md") && !n.contains('/') && !n.contains(':')), "{names:?}");
+        assert!(names.iter().any(|n| n.contains("Untitled note")), "{names:?}");
+        assert!(!names.iter().any(|n| n.contains("Trashed")), "{names:?}");
+
+        // a second export into the same folder (same minute) keeps the first files
+        assert_eq!(export_all(&c, &dir).unwrap(), ids.len());
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), ids.len() * 2);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn note_lifecycle_and_folders() {
