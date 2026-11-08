@@ -7,6 +7,7 @@ mod db;
 mod enhance;
 mod jobs;
 mod notes;
+mod notify;
 mod stt;
 
 use db::now_ms;
@@ -458,6 +459,70 @@ fn notes_export(st: State<St>) -> R<Export> {
     })
 }
 
+/* S20 meeting notification ------------------------------------------------------------------------- */
+
+/// "Start notes" in the pop-up: the note for that meeting, recording on, the call link opened, the main window on the note.
+#[tauri::command(async)]
+fn meeting_take_notes(app: tauri::AppHandle, window: tauri::Window, st: State<St>, event_id: String) -> R<String> {
+    let note = note_open_for_event(st.clone(), event_id.clone())?;
+    recording_start(st.clone(), note.id.clone())?;
+    let link: Option<String> =
+        read(&st, |c| Ok(c.query_row("select video_link from calendar_events where id = ?1", [&event_id], |r| r.get(0)).optional()?.flatten()))?;
+    if let Some(l) = link.filter(|l| l.starts_with("https://")) {
+        use tauri_plugin_opener::OpenerExt;
+        let _ = app.opener().open_url(l, None::<&str>); // the notes still start if the browser does not open
+    }
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.show();
+        let _ = main.unminimize();
+        let _ = main.set_focus();
+        let _ = main.emit("navigate", format!("/note/{}", note.id));
+    }
+    let _ = window.close();
+    Ok(note.id)
+}
+
+#[tauri::command]
+fn meeting_dismiss(window: tauri::Window) {
+    let _ = window.close();
+}
+
+/// Every 15 s: a small always-on-top window, top right, for each meeting about to start.
+fn spawn_notifier(app: tauri::AppHandle, core: Arc<Core>) {
+    std::thread::spawn(move || {
+        let mut shown = std::collections::HashSet::new();
+        loop {
+            let due = notify::due(&core.db.lock().unwrap(), now_ms(), &shown).unwrap_or_else(|e| {
+                eprintln!("notifier: {e}");
+                vec![]
+            });
+            for (i, d) in due.into_iter().enumerate() {
+                shown.insert(d.id.clone());
+                let h = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    let (w, h_px) = (360.0, 128.0);
+                    let x = h.primary_monitor().ok().flatten().map(|m| m.size().width as f64 / m.scale_factor() - w - 16.0).unwrap_or(40.0);
+                    let url = tauri::WebviewUrl::App(format!("index.html#/toast/{}", d.id).into());
+                    let built = tauri::WebviewWindowBuilder::new(&h, format!("toast-{}", d.id), url)
+                        .title("Meeting starting")
+                        .inner_size(w, h_px)
+                        .position(x, 40.0 + i as f64 * (h_px + 12.0))
+                        .decorations(false)
+                        .resizable(false)
+                        .always_on_top(true)
+                        .skip_taskbar(true)
+                        .focused(false)
+                        .build();
+                    if let Err(e) = built {
+                        eprintln!("notifier window: {e}");
+                    }
+                });
+            }
+            std::thread::sleep(std::time::Duration::from_secs(15));
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -470,6 +535,7 @@ pub fn run() {
             let handle = app.handle().clone();
             let core = Arc::new(Core { db: Mutex::new(conn), data, notify: Box::new(move || { let _ = handle.emit("changed", ()); }) });
             jobs::spawn(core.clone());
+            spawn_notifier(app.handle().clone(), core.clone());
             app.manage(St(core));
             Ok(())
         })
@@ -483,6 +549,7 @@ pub fn run() {
             note_trash, note_restore, note_delete_forever,
             note_copy_markdown, note_email_draft, search, chat_send,
             settings_get, settings_update, mic_permission, permissions_get, permission_request, notes_export,
+            meeting_take_notes, meeting_dismiss,
         ])
         .build(tauri::generate_context!())
         .expect("error while building the app")

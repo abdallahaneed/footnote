@@ -14,7 +14,7 @@ export const {
   transcriptDeleteSegment, transcriptCopyAll, transcriptRetry, templatesList, templateSave, templateDelete, foldersTree, folderSave,
   folderDelete, notesAddToFolder, notesRemoveFromFolder, noteTrash, noteRestore, noteDeleteForever, noteCopyMarkdown, noteEmailDraft,
   searchIndex, chatSend, calendarSourcesList, calendarAddSource, calendarSourceDelete,
-  settingsGet, settingsUpdate, permissionsGet, permissionRequest, notesExport,
+  settingsGet, settingsUpdate, permissionsGet, permissionRequest, notesExport, meetingTakeNotes, meetingDismiss,
 } = api;
 
 // mailto: and meeting links: the system handler in the app, the browser otherwise.

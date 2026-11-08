@@ -402,3 +402,12 @@ export const permissionRequest = (kind: "mic" | "system_audio") => call("permiss
 export const notesExport = () => call("notes_export", () => ({
   dir: "", count: db.notes.filter((n) => !n.deletedAt).length,
 }));
+
+/* Meeting notification (S20). In the app the core does all of this and focuses the main window; here the one window navigates. */
+
+export const meetingTakeNotes = async (eventId: string) => {
+  const n = await noteOpenForEvent(eventId);
+  await recordingStart(n.id);
+  return n.id;
+};
+export const meetingDismiss = () => Promise.resolve();

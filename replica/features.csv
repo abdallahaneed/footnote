@@ -13,7 +13,7 @@ New ad-hoc note button,notes,must,yes,yes,S05 + New Note; build: S05 + palette c
 Capture microphone audio,capture,must,yes,partial,S07; backend: cpal capture into 30 s WAV segments built and tested with a replayed WAV; not yet tried with a real mic in the app
 Capture system audio without a meeting bot,capture,must,yes,partial,"S07; ScreenCaptureKit or Core Audio tap / WASAPI loopback; backend: pipeline takes a second channel; the macOS process tap / Windows loopback source is not written; 2026-11-08: macOS done with ScreenCaptureKit, tested with real playback; Windows not built"
 Separate me (mic) and them (system) channels,capture,must,yes,yes,"S08 bubble sides; backend: two channels transcribed as Me / Them end to end (test WAVs); real system source missing; 2026-11-08: macOS, with an echo filter for speakers"
-Capture only while a note is open,capture,must,yes,no,transcription article
+Capture only while a note is open,capture,must,yes,yes,capture always belongs to one note (recording_start takes a note id); no background listening; it keeps going if you move elsewhere in the app and Home shows Recording; the floating indicator (S21) is still missing
 Recording indicator in the note,capture,must,yes,yes,S07 bars; build: UI done; capture behind it is fake until replica-backend
 Floating live meeting indicator,capture,should,yes,no,S21; toggle in S28
 Stop and resume transcription,capture,must,yes,partial,S08; build: UI and flow done on fake capture
@@ -74,10 +74,10 @@ Add images to a note,notes,should,yes,no,changelog Nov 2024
 Upload files to a note,notes,could,yes,no,changelog Jun 2025
 Trash with restore and 30-day purge,notes,must,yes,yes,"S22; build: S22, purge on launch; backend: real: purge job also removes audio files"
 Transcript auto-deletion setting,privacy,should,yes,partial,S28; backend: retention job built; no settings screen
-Meeting notification 1 min before event,detect,must,yes,no,S20; events with 2+ attendees
+Meeting notification 1 min before event,detect,must,yes,partial,"S20 built 2026-11-08: Rust checks every 15 s for events starting within 75 s with 2+ invitees from an enabled calendar, no recording note; own always-on-top window top right; selection unit-tested; not yet seen fire from a real calendar"
 Detect ad-hoc calls from mic use,detect,should,yes,no,S20 Meeting / Huddle / Call detected
 Per-app notification toggles,detect,should,yes,no,S29
-Open video link from notification,detect,should,yes,no,S20
+Open video link from notification,detect,should,yes,partial,S20 Start notes opens the event's https video link via the system browser; not yet tried with a real event
 "Consent: post a ""notes being taken"" message",consent,could,yes,no,Granola automated chat message; clone can offer copy-paste text
 People view from attendees,people,could,yes,no,S16
 Companies view from email domains,people,could,yes,no,S17

@@ -16,7 +16,6 @@ export const STUBS: StubScreen[] = [
   { id: "S16", path: "/people", name: "People", purpose: "Everyone you have met, from calendar invitees.", when: "Could-have" },
   { id: "S17", path: "/companies", name: "Companies", purpose: "Companies grouped by email domain.", when: "Could-have" },
   { id: "S18", path: "/people/:id", name: "Person", purpose: "All notes with one person, plus chat scoped to them.", when: "Could-have" },
-  { id: "S20", path: "/preview/notification", name: "Meeting notification", purpose: "Pop-up one minute before a meeting with two or more people.", when: "Milestone 1, needs the Rust notifier" },
   { id: "S21", path: "/preview/indicator", name: "Floating recording indicator", purpose: "Small pill on the screen edge while recording in the background.", when: "Should-have, separate always-on-top window" },
   { id: "S24", path: "/folder-share", name: "Folder sharing", purpose: "Members and link access for a folder.", when: "Milestone 3, needs the sync server" },
   { id: "S25", path: "/brief/:id", name: "Meeting brief", purpose: "What you discussed last time with the same people.", when: "Should-have" },

@@ -21,8 +21,9 @@ Screenshots: replica/clone-screens/, 1440x900 and 390x844, light and dark. No re
 | S03 permissions | 2026-11-08 | partial | real macOS prompts not tried yet (needs a signed build; the dev binary asks on behalf of the terminal) | macOS only reports screen recording as granted or not, so "never asked" and "denied" look the same; the screen asks once, then sends you to System Settings |
 | S28 settings | 2026-11-08 | partial | saves on its own since replica-test round 2 (an explicit Save lost changes when you left); theme switch, live meeting indicator toggle, languages, markdown mirror folder picker (no folder dialog plugin yet) | Radix radio checks on arrow focus only while the key is down; fast synthetic taps can miss it, so the test presses Space |
 | export all | 2026-11-08 | partial | CSV; Rust notes_export compiled but not yet run in the desktop app | nothing |
+| S20 meeting notification | 2026-11-08 | partial | not seen fire from a real calendar yet; per-app toggles (S29); call detection from mic use; auto-stop when the call ends | needed its own window: a Rust thread opens a small undecorated always-on-top webview per meeting, and "Start notes" runs in the core so it can focus the main window and tell it where to go |
 | layout | 2026-11-08 | done | — | main was not a scroll container, so long pages scrolled the whole window and the sidebar went with it |
-| S01, S02 picker, S04, S11, S12, S14-S18, S20, S21, S24-S27, S29-S38 | 2026-11-07 | stub | routed with a "Not built yet" page naming the milestone | — |
+| S01, S02 picker, S04, S11, S12, S14-S18, S21, S24-S27, S29-S38 | 2026-11-07 | stub | routed with a "Not built yet" page naming the milestone | — |
 
 Bigger than it looks:
 1. Everything in the core loop past the UI is fake: capture, whisper, the LLM, audio playback. The slice proves the screens and the flow, not the hard part. architecture.md says to build the capture spike first; that is the next real risk.

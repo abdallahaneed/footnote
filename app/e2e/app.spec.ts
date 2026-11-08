@@ -317,3 +317,34 @@ test("S28 settings: keyboard only, change retention", async ({ page }) => {
   await expect(page.getByRole("radio", { name: /Keep for 7 days/ })).toBeChecked();
   await expect(page.getByText("Saved.")).toBeVisible();
 });
+
+test("S20 meeting pop-up: Start notes opens the meeting's note recording; Dismiss closes", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 128 }); // the size of the pop-up window
+  await open(page, "/toast/e-supplier");
+  const pop = page.getByRole("region", { name: "Meeting: Supplier call" });
+  await expect(pop).toContainText("Lena");
+  expect(await serious(page)).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: `${shots}/S20.png` });
+  await pop.getByRole("button", { name: "Start notes" }).dblclick(); // one click, one recording
+  await expect(page).toHaveURL(/#\/note\//);
+  await expect(page.getByLabel("Note title")).toHaveValue("Supplier call");
+  await expect(page.getByRole("status").filter({ hasText: "Recording" })).toBeVisible();
+  await page.goto("/#/");
+  await expect(page.getByRole("button", { name: /Supplier call/ })).toHaveCount(2); // the meeting row and one note, not two notes
+  await open(page, "/toast/e-design");
+  await page.getByRole("button", { name: "Dismiss" }).click();
+  await expect(page).toHaveURL(/#\/$/);
+});
+
+test("S20 meeting pop-up: gone meeting, load error, keyboard only", async ({ page }) => {
+  await open(page, "/toast/no-such-event");
+  await expect(page.getByText("no longer in your calendar")).toBeVisible();
+  await open(page, "/toast/e-supplier", "?fail=calendar_upcoming");
+  await expect(page.getByRole("alert")).toContainText("Could not reach");
+  await open(page, "/toast/e-supplier");
+  await expect(page.getByRole("button", { name: "Start notes" })).toBeVisible();
+  for (let i = 0; i < 5 && (await page.evaluate(() => document.activeElement?.textContent)) !== "Start notes"; i++) await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/#\/note\//);
+});

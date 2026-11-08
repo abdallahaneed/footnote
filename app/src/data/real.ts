@@ -2,6 +2,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { notify } from "./store";
+import { go } from "../app/router";
 import type { CalendarEvent, Folder, Note, Permissions, Segment, Settings, Template } from "./types";
 
 // The core emits "changed" after every write and as background work moves on; screens reload.
@@ -58,3 +59,9 @@ export const settingsUpdate = (s: Settings) => invoke<void>("settings_update", {
 export const permissionsGet = () => invoke<Permissions>("permissions_get");
 export const permissionRequest = (kind: "mic" | "system_audio") => invoke<Permissions>("permission_request", { kind });
 export const notesExport = () => invoke<{ dir: string; count: number }>("notes_export");
+
+export const meetingTakeNotes = (eventId: string) => invoke<string>("meeting_take_notes", { eventId });
+export const meetingDismiss = () => invoke<void>("meeting_dismiss");
+
+// The pop-up window asks the core to open a note here.
+if ("__TAURI_INTERNALS__" in window) listen<string>("navigate", (e) => go(e.payload));

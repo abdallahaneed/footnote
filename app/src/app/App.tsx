@@ -9,6 +9,7 @@ import { Templates } from "../screens/Templates";
 import { Calendars } from "../screens/Calendars";
 import { Permissions } from "../screens/Permissions";
 import { Settings } from "../screens/Settings";
+import { MeetingPopup } from "../screens/MeetingPopup";
 import { NotFound, STUBS, Stub } from "../screens/Stub";
 import { Sidebar } from "./Sidebar";
 import { Palette } from "./Palette";
@@ -32,6 +33,11 @@ function Screen({ path }: { path: string }) {
 
 export function App() {
   const path = useRoute();
+  const toast = match("/toast/:id", path);
+  return toast ? <MeetingPopup key={toast.id} eventId={toast.id} /> : <Main path={path} />;
+}
+
+function Main({ path }: { path: string }) {
   const [sidebar, setSidebar] = useState(wide);
   const [palette, setPalette] = useState(false);
 
