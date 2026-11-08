@@ -112,8 +112,8 @@ Not automatable from Playwright because the browser run uses the fake layer. Run
 4. F02: system audio from Zoom/Meet as "them" in an interview; echo filter keeps your voice out of their side.
 5. Email to attendees opens the mail app with subject and body; Copy as Markdown pastes cleanly.
 6. Calendar ICS link syncs real events into Upcoming, across a time-zone change.
-8. Search in the desktop app after the 0004 migration: the first search after start indexes every note; it should feel instant, and a word from a transcript recorded today is found.
 7. Own-notes editor in the desktop window (WKWebView, not Chromium): German dead keys (ä via Option-u), Cmd+B/I, Cmd+Z, "- " list, then Cmd+Q right after typing and reopen: the last words are there.
+8. Search in the desktop app after the 0004 migration: the first search after start indexes every note; it should feel instant, and a word from a transcript recorded today is found.
 
 ## To check (seen in code, not reproduced as a user-visible bug)
 
