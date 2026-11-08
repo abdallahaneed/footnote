@@ -15,7 +15,7 @@ create table templates (
   name         text    not null,
   description  text    not null default '',
   sections     text    not null check (json_valid(sections) and json_array_length(sections) > 0), -- [{heading, instructions}]
-  built_in     integer not null default 0 check (built_in in (0,1)),  -- our own starter set, never Granola's text
+  built_in     integer not null default 0 check (built_in in (0,1)),  -- our own starter set, written for this app
   created_at   integer not null,
   updated_at   integer not null
 ) strict;

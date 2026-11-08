@@ -1,0 +1,6 @@
+{
+ "_about": "Read by replica-brand sweep.py, listing.py and replica-deploy. avoid: the original's names; domains: its domains; colors: its brand colours (third-party design file, approximate).",
+ "avoid": ["Granola", "Granola AI", "Quadrant"],
+ "domains": ["granola.ai", "granola.so", "docs.granola.ai"],
+ "colors": ["#5b6f00"]
+}

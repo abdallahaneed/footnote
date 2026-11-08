@@ -259,32 +259,32 @@ test("S28-E4 word list: duplicates ignored, stops at 30", async ({ page }) => {
 
 test("S28-N1 settings that cannot load offer a retry", async ({ page }) => {
   await open(page, "/settings/preferences", "?fail=settings_get");
-  await expect(page.getByRole("alert").first()).toContainText("Could not reach");
+  await expect(page.getByRole("alert").first()).toContainText("could not finish that");
   await expect(page.getByRole("button", { name: "Try again" }).first()).toBeVisible();
 });
 
 test("S28-N2 a failed save keeps the edits and says why", async ({ page }) => {
   await open(page, "/settings/preferences", "?fail=settings_update");
   await page.getByRole("radio", { name: /Keep for 7 days/ }).click();
-  await expect(page.getByRole("alert")).toContainText("Could not reach");
+  await expect(page.getByRole("alert")).toContainText("could not finish that");
   await expect(page.getByRole("radio", { name: /Keep for 7 days/ })).toBeChecked();
 });
 
 test("S28-N3 a failed export says why", async ({ page }) => {
   await open(page, "/settings/preferences", "?fail=notes_export");
   await page.getByRole("button", { name: "Export all notes" }).click();
-  await expect(page.getByRole("alert")).toContainText("Could not reach");
+  await expect(page.getByRole("alert")).toContainText("could not finish that");
 });
 
 test("S03-N1 permissions that cannot load offer a retry", async ({ page }) => {
   await open(page, "/welcome/audio", "?fail=permissions_get");
-  await expect(page.getByRole("alert").first()).toContainText("Could not reach");
+  await expect(page.getByRole("alert").first()).toContainText("could not finish that");
 });
 
 test("S03-N2 a failed request shows the reason and keeps Allow", async ({ page }) => {
   await open(page, "/welcome/audio", "?perm=undetermined&fail=permission_request");
   await page.getByRole("button", { name: "Allow" }).first().click();
-  await expect(page.getByRole("alert").first()).toContainText("Could not reach");
+  await expect(page.getByRole("alert").first()).toContainText("could not finish that");
   await expect(page.getByRole("button", { name: "Allow" }).first()).toBeVisible();
 });
 
@@ -351,7 +351,7 @@ test("S20-E3 Start notes on a meeting that is already recording keeps one note a
 test("S20-N1 recording that cannot start says why and Start notes works again", async ({ page }) => {
   await open(page, "/toast/e-design", "?fail=recording_start");
   await page.getByRole("button", { name: "Start notes" }).click();
-  await expect(page.getByRole("alert")).toContainText("Could not reach");
+  await expect(page.getByRole("alert")).toContainText("could not finish that");
   await expect(page).toHaveURL(/#\/toast\//);
   await expect(page.getByRole("button", { name: "Start notes" })).toBeEnabled();
 });

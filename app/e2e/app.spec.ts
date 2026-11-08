@@ -116,7 +116,7 @@ test("failed generation stays visible (simulated model down)", async ({ page }) 
 
 test("home load error offers a retry", async ({ page }) => {
   await open(page, "/", "?fail=notes_list");
-  await expect(page.getByRole("alert").first()).toContainText("Could not reach");
+  await expect(page.getByRole("alert").first()).toContainText("could not finish that");
   await expect(page.getByRole("alert").getByRole("button", { name: "Try again" }).first()).toBeVisible();
   await page.screenshot({ path: `${shots}/S05-error.png` });
 });
@@ -341,7 +341,7 @@ test("S20 meeting pop-up: gone meeting, load error, keyboard only", async ({ pag
   await open(page, "/toast/no-such-event");
   await expect(page.getByText("no longer in your calendar")).toBeVisible();
   await open(page, "/toast/e-supplier", "?fail=calendar_upcoming");
-  await expect(page.getByRole("alert")).toContainText("Could not reach");
+  await expect(page.getByRole("alert")).toContainText("could not finish that");
   await open(page, "/toast/e-supplier");
   await expect(page.getByRole("button", { name: "Start notes" })).toBeVisible();
   for (let i = 0; i < 5 && (await page.evaluate(() => document.activeElement?.textContent)) !== "Start notes"; i++) await page.keyboard.press("Tab");

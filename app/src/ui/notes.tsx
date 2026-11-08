@@ -1,4 +1,4 @@
-// Primitives specific to the meeting-notes clone. Specs in replica/design/components.md.
+// Primitives specific to Footnote. Specs in replica/design/components.md.
 import { useEffect, useId, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Avatar as RAvatar, Dialog, Tabs as RTabs } from "radix-ui";
 import { AlertCircle, ArrowUp, Check, ChevronRight, Copy, Loader2, Play, RotateCcw, Search, Square, Trash2, X } from "lucide-react";
@@ -264,7 +264,7 @@ export function MeetingToast({ kind, title, detail, onTakeNotes, onDismiss }: {
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-xs font-medium text-muted">{kind === "calendar" ? "Starting now" : "Call detected"}</p>
+            <p className="text-xs font-medium text-muted">{kind === "calendar" ? "Starting soon" : "Call detected"}</p>
             <p className="truncate text-base font-semibold">{title}</p>
             <p className="truncate text-sm text-muted">{detail}</p>
           </div>

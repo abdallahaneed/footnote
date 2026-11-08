@@ -15,7 +15,7 @@ const fail = new URLSearchParams(location.search).get("fail");
 
 // Like Tauri IPC: the command reaches the core at once (so a save sent as the page unloads still lands), the answer comes later.
 async function call<T>(cmd: string, fn: () => T): Promise<T> {
-  if (fail === cmd || fail === "all") { await wait(60); throw new Error(`Could not reach the app core (${cmd}).`); }
+  if (fail === cmd || fail === "all") { await wait(60); throw new Error(`Footnote could not finish that (${cmd}). Nothing was lost. Try again.`); }
   let out: T, err: unknown;
   try { out = structuredClone(fn()); } catch (e) { err = e; } // clone: screens never hold a live reference
   await wait(60);

@@ -20,7 +20,7 @@ export function Sidebar({ path, onSearch }: { path: string; onSearch: () => void
     <nav aria-label="Main" className="fixed inset-y-0 left-0 z-40 flex w-[var(--sidebar)] shrink-0 flex-col border-r border-border bg-surface md:static">
       <div className="flex shrink-0 items-center gap-2 px-3" style={{ height: "var(--titlebar)" }}>
         <FileText className="size-4 text-accent" aria-hidden />
-        <span className="text-base font-semibold">Notes</span>
+        <span className="text-base font-semibold">Footnote</span>
       </div>
       <div className="px-2 pb-2">
         <button onClick={onSearch} className="flex h-8 w-full items-center gap-2 rounded-md border border-border bg-bg px-2 text-sm text-muted hover:text-fg">
