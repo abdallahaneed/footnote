@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Footnote: meeting notes you can check</title>
+  <meta name="description" content="Footnote records to your own disk while you talk, writes notes on your Mac, and links every line back to the moment it was said. No account, nothing uploaded. Free.">
+  <link rel="stylesheet" href="tokens.css">
+  <style>
+    /* Colours, type and radii come from tokens.css: a copy of app/src/styles/tokens.css with "@theme inline {" changed to ":root {" so a plain browser reads it. */
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--c-bg); color: var(--c-text); font-family: var(--font-sans); font-size: var(--text-note); line-height: var(--text-note--line-height); -webkit-font-smoothing: antialiased; }
+    a { color: var(--c-accent); }
+    :focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 calc(var(--spacing) * 4); }
+    header { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .brand { display: flex; align-items: center; gap: calc(var(--spacing) * 2); font-weight: 700; font-size: var(--text-lg); color: var(--c-text); text-decoration: none; }
+    .brand sup { color: var(--c-accent); font-size: var(--text-sm); }
+    h1 { font-size: clamp(30px, 6vw, 48px); line-height: 1.1; margin: calc(var(--spacing) * 12) 0 calc(var(--spacing) * 4); max-width: 18ch; letter-spacing: -0.01em; }
+    h2 { font-size: var(--text-display); line-height: var(--text-display--line-height); margin: 0 0 calc(var(--spacing) * 6); }
+    h3 { font-size: var(--text-lg); line-height: var(--text-lg--line-height); margin: 0 0 calc(var(--spacing) * 2); }
+    .lede { font-size: 18px; line-height: 28px; color: var(--c-text-ai); max-width: 56ch; margin: 0 0 calc(var(--spacing) * 6); }
+    .btn { display: inline-flex; align-items: center; height: 44px; padding: 0 calc(var(--spacing) * 5); border-radius: var(--radius-md); background: var(--c-accent); color: var(--c-on-accent); font: inherit; font-weight: 600; text-decoration: none; border: 0; }
+    .btn[aria-disabled="true"] { background: var(--c-surface-2); color: var(--c-text); cursor: default; }
+    .note { font-size: var(--text-sm); color: var(--c-text-muted); margin-top: calc(var(--spacing) * 3); }
+    .shot { margin: calc(var(--spacing) * 12) 0 0; border: 1px solid var(--c-border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-pop); background: var(--c-bg); }
+    .shot img { display: block; width: 100%; height: auto; }
+    section { padding: calc(var(--spacing) * 20) 0 0; }
+    .grid { display: grid; gap: calc(var(--spacing) * 6); grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .card { background: var(--c-surface); border-radius: var(--radius-lg); padding: calc(var(--spacing) * 6); }
+    .card p, .step p { margin: 0; color: var(--c-text-ai); }
+    ol.steps { list-style: none; padding: 0; margin: 0; counter-reset: s; }
+    .step { counter-increment: s; position: relative; padding-left: calc(var(--spacing) * 12); }
+    .step::before { content: counter(s); position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: var(--radius-pill); background: var(--c-accent-soft); color: var(--c-text); display: grid; place-items: center; font-weight: 700; font-size: var(--text-sm); }
+    .problem { font-size: 20px; line-height: 30px; max-width: 60ch; margin: 0 0 calc(var(--spacing) * 4); }
+    .also { color: var(--c-text-muted); margin-top: calc(var(--spacing) * 6); max-width: 70ch; }
+    .price { display: flex; flex-wrap: wrap; align-items: baseline; gap: calc(var(--spacing) * 4); }
+    .price strong { font-size: 48px; line-height: 1; }
+    details { border-top: 1px solid var(--c-border); padding: calc(var(--spacing) * 4) 0; }
+    details:last-child { border-bottom: 1px solid var(--c-border); }
+    summary { cursor: pointer; font-weight: 600; }
+    details p { margin: calc(var(--spacing) * 2) 0 0; color: var(--c-text-ai); max-width: 70ch; }
+    .final { text-align: center; padding-bottom: calc(var(--spacing) * 20); }
+    footer { border-top: 1px solid var(--c-border); padding: calc(var(--spacing) * 6) 0; color: var(--c-text-muted); font-size: var(--text-sm); }
+    @media (prefers-color-scheme: dark) { .shot .light { display: none; } }
+    @media not (prefers-color-scheme: dark) { .shot .dark { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a class="brand" href="#top">Footnote<sup aria-hidden="true">1</sup></a>
+      <a href="#get" data-cta>Get it for Mac</a>
+    </header>
+
+    <main id="top">
+      <h1>Meeting notes you can check, kept on your Mac.</h1>
+      <p class="lede">Footnote records to your own disk while you talk, writes notes on this computer, and links every line back to the moment it was said.</p>
+      <a class="btn" id="get" href="#" data-cta>Get Footnote for Mac</a>
+      <p class="note">Free. No account. macOS 14 or later.</p>
+
+      <figure class="shot">
+        <img class="light" src="hero.png" width="1440" height="900" alt="A meeting note in Footnote. Your own lines are marked with a rule; each generated line ends with the time it was said, such as 12:00.">
+        <img class="dark" src="hero-dark.png" width="1440" height="900" alt="The same meeting note in dark mode.">
+      </figure>
+
+      <section aria-labelledby="problem-h">
+        <h2 id="problem-h">Two ways meeting notes let you down</h2>
+        <p class="problem">The app stops in the middle of an important call, and the meeting is gone. Often it doesn't even say so.</p>
+        <p class="problem">The summary says something nobody said, and there's no way to check it.</p>
+      </section>
+
+      <section aria-labelledby="how-h">
+        <h2 id="how-h">How it works</h2>
+        <ol class="steps grid">
+          <li class="step"><h3>Open the meeting</h3><p>Today's calls come from your calendar link. Or start a blank note.</p></li>
+          <li class="step"><h3>Write what matters to you</h3><p>Footnote records your microphone and the call's sound, and saves it to disk every 30 seconds.</p></li>
+          <li class="step"><h3>Stop</h3><p>The transcript and the notes are made on your Mac, each line pointing to the moment it came from.</p></li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="diff-h">
+        <h2 id="diff-h">Built so you can trust it</h2>
+        <div class="grid">
+          <div class="card"><h3>Never lose a meeting</h3><p>Audio goes to your disk in 30-second pieces as you talk. If the app or the Mac stops, the note finishes from what was saved.</p></div>
+          <div class="card"><h3>Check any line</h3><p>Every generated line carries the time it was said. One click opens that moment in the transcript. Your own lines are marked as yours.</p></div>
+          <div class="card"><h3>See where every note is</h3><p>Saved, transcribing, writing, ready. If something fails, Footnote says why and offers Try again.</p></div>
+          <div class="card"><h3>No account, nothing uploaded</h3><p>No sign-in, no cloud. Speech-to-text and note writing run on this Mac.</p></div>
+          <div class="card"><h3>Your words, your control</h3><p>A real editor for your own notes. Short, normal or detailed notes. How long every meeting lasted.</p></div>
+          <div class="card"><h3>Export that keeps its shape</h3><p>Every note as a Markdown file, whenever you like.</p></div>
+        </div>
+        <p class="also">Also there: templates and a "/" menu while you type, a pop-up a minute before a meeting, a transcript you can tidy, search across everything, folders, questions about your notes, and a 30-day trash.</p>
+      </section>
+
+      <section aria-labelledby="price-h">
+        <h2 id="price-h">Pricing</h2>
+        <div class="price"><strong>Free</strong><span>No account, no trial, no subscription. It runs on your Mac, so there's nothing to charge you for.</span></div>
+      </section>
+
+      <section aria-labelledby="faq-h">
+        <h2 id="faq-h">Questions</h2>
+        <details><summary>What do I need?</summary><p>A Mac with macOS 14 or later, and Ollama with a model installed. Footnote shows you how. Expect a few GB for the speech and note models.</p></details>
+        <details><summary>Does anything leave my Mac?</summary><p>No. The only network use is reading your calendar link, if you add one, and downloading models when you choose to.</p></details>
+        <details><summary>Does it join the call as a bot?</summary><p>No. It listens to your Mac's microphone and sound output.</p></details>
+        <details><summary>Do I have to tell people?</summary><p>Yes, tell them you're taking notes. Recording rules depend on where you and they are.</p></details>
+        <details><summary>Can it tell speakers apart?</summary><p>It separates you (microphone) from everyone else (call audio). Names for each person aren't there yet.</p></details>
+        <details><summary>Is there a Windows version?</summary><p>Not yet. Mac first.</p></details>
+        <details><summary>Can I bring notes from other meeting tools?</summary><p>Not yet. You can take everything out of Footnote as Markdown at any time.</p></details>
+        <details><summary>What happens to the audio?</summary><p>By default it's deleted once it's transcribed. You can keep it for 7 days, 30 days, or for good in Settings.</p></details>
+      </section>
+
+      <section class="final" aria-labelledby="final-h">
+        <h2 id="final-h">Your next important call, kept.</h2>
+        <a class="btn" href="#" data-cta>Get Footnote for Mac</a>
+      </section>
+    </main>
+  </div>
+  <footer><div class="wrap">Footnote. Made for people whose meetings matter.</div></footer>
+
+  <script>
+    // Set this to the waitlist or download link before publishing (launch-plan.md). Until then the buttons say so instead of linking nowhere.
+    const CTA_URL = "";
+    document.querySelectorAll("[data-cta]").forEach((a) => {
+      if (CTA_URL) { a.href = CTA_URL; return; }
+      a.removeAttribute("href");
+      a.setAttribute("aria-disabled", "true");
+      a.textContent = a.classList.contains("btn") ? "Coming soon for Mac" : "Coming soon";
+    });
+  </script>
+</body>
+</html>
