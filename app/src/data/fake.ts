@@ -1,9 +1,9 @@
 // Fake data layer for the browser (dev and Playwright). Every export mirrors a Tauri command from replica/architecture.md (the name passed to call()).
 // The real one is real.ts (Tauri commands); api.ts picks one. Keep both in step.
 import { commit, db } from "./store";
-import { COMMIT, generate, toMarkdown } from "./generate";
+import { COMMIT, generate, mdPlain, toMarkdown } from "./generate";
 import { clock } from "./format";
-import type { CalendarEvent, Folder, Note, Permissions, Segment, Settings, Template } from "./types";
+import type { CalendarEvent, Folder, Note, Permissions, SearchHit, Segment, Settings, Template } from "./types";
 
 const DAY = 86_400_000;
 const SEG_MS = 1500; // a real segment is 30 s; shortened so the fake transcript moves
@@ -322,12 +322,30 @@ export const noteEmailDraft = (id: string) => call("note_email_draft", () => {
 /* Search (FTS5 stand-in) ----------------------------------------------------- */
 
 export const searchIndex = () => call("search", () => ({
-  notes: db.notes.filter((n) => !n.deletedAt).sort((a, b) => b.createdAt - a.createdAt).map((n) => ({
-    id: n.id, title: titleOf(n), createdAt: n.createdAt,
-    text: [titleOf(n), n.ownText, ...(n.generated ?? []).map((l) => l.text), ...segsOf(n.id).filter((s) => !s.deleted).map((s) => s.text)].join("\n").toLowerCase(),
-  })),
+  notes: db.notes.filter((n) => !n.deletedAt).sort((a, b) => b.createdAt - a.createdAt).slice(0, 20).map((n) => ({ id: n.id, title: titleOf(n), createdAt: n.createdAt })),
   folders: db.folders,
 }));
+
+// Same rules as the Rust FTS5 query: every word must be the start of a word in one field, accents ignored, title hits first.
+const fold = (t: string) => t.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+const words = (t: string) => fold(t).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+export const searchNotes = (q: string) => call("search_notes", (): SearchHit[] => {
+  const terms = words(q);
+  if (!terms.length) return [];
+  const hits: SearchHit[] = [];
+  for (const n of db.notes.filter((x) => !x.deletedAt).sort((a, b) => b.createdAt - a.createdAt)) {
+    const fields: [SearchHit["field"], string][] = [["title", titleOf(n)], ["notes", mdPlain(n.ownText)],
+      ...(n.generated ?? []).map((l): [SearchHit["field"], string] => ["generated", l.text]),
+      ...segsOf(n.id).filter((s) => !s.deleted).map((s): [SearchHit["field"], string] => ["transcript", s.text])];
+    const hit = fields.find(([, t]) => { const w = words(t); return terms.every((q) => w.some((x) => x.startsWith(q))); });
+    if (!hit) continue;
+    const raw = hit[1].split(/\s+/), at = raw.findIndex((x) => fold(x).replace(/[^\p{L}\p{N}]/gu, "").startsWith(terms[0]));
+    const from = Math.max(0, at - 4);
+    const snippet = (from ? "…" : "") + raw.slice(from, from + 10).join(" ") + (from + 10 < raw.length ? "…" : "");
+    hits.push({ id: n.id, title: titleOf(n), createdAt: n.createdAt, field: hit[0], snippet });
+  }
+  return [...hits.filter((h) => h.field === "title"), ...hits.filter((h) => h.field !== "title")].slice(0, 20);
+});
 
 /* Chat (local LLM stand-in) -------------------------------------------------- */
 

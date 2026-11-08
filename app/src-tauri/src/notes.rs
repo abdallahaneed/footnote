@@ -448,25 +448,107 @@ pub struct IndexEntry {
     id: String,
     title: String,
     created_at: i64,
-    text: String,
 }
 
-/// Everything searchable per note, lowercased; the palette filters it.
-// shortcut: sends all text to the UI; fine for a few hundred notes. Switch the palette to an FTS5 query when it gets slow.
+/// Notes for the palette's empty state (most recent first); text search goes through search_notes.
 pub fn search_index(conn: &Connection) -> anyhow::Result<Vec<IndexEntry>> {
-    let mut st = conn.prepare(
-        "select n.id, n.title, n.created_at, n.own_notes_json, coalesce(n.enhanced_md, ''),
-           coalesce((select group_concat(text, ' ') from transcript_segments t where t.note_id = n.id and t.deleted = 0), '')
-         from notes n where n.deleted_at is null order by n.created_at desc",
-    )?;
-    let rows = st.query_map([], |r| {
-        let (title, own, md, tr): (String, String, String, String) = (r.get(1)?, r.get(3)?, r.get(4)?, r.get(5)?);
-        Ok(IndexEntry {
-            id: r.get(0)?, created_at: r.get(2)?, title: title_of(&title),
-            text: format!("{}\n{}\n{}\n{}", title_of(&title), own_text(&own), enhance::export_md(&md), tr).to_lowercase(),
-        })
-    })?;
+    let mut st = conn.prepare("select id, title, created_at from notes where deleted_at is null order by created_at desc limit 20")?;
+    let rows = st.query_map([], |r| Ok(IndexEntry { id: r.get(0)?, title: title_of(&r.get::<_, String>(1)?), created_at: r.get(2)? }))?;
     Ok(rows.collect::<Result<_, _>>()?)
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchHit {
+    pub id: String,
+    pub title: String,
+    pub created_at: i64,
+    /// title, notes, generated or transcript
+    pub field: String,
+    pub snippet: String,
+}
+
+/// Rewrites search_fts rows for notes the triggers marked stale (migration 0004).
+fn refresh_search(conn: &Connection) -> anyhow::Result<()> {
+    let stale: Vec<String> = conn.prepare("select note_id from search_stale")?.query_map([], |r| r.get(0))?.collect::<Result<_, _>>()?;
+    if stale.is_empty() {
+        return Ok(());
+    }
+    let tx = conn.unchecked_transaction()?;
+    for id in &stale {
+        // shortcut: note_id is unindexed, so this delete scans the table; fine for thousands of notes, add a rowid map if not
+        tx.execute("delete from search_fts where note_id = ?1", [id])?;
+        let row = tx
+            .query_row("select title, own_notes_json, coalesce(enhanced_md, '') from notes where id = ?1", [id], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))
+            })
+            .optional()?;
+        if let Some((title, own, md)) = row {
+            let add = |field: &str, body: String| tx.execute("insert into search_fts (note_id, field, body) values (?1, ?2, ?3)", params![id, field, body]);
+            add("title", title_of(&title))?;
+            add("notes", md_plain(&own_text(&own)))?;
+            add("generated", enhance::export_md(&md))?;
+            let segs: Vec<String> = tx
+                .prepare("select text from transcript_segments where note_id = ?1 and deleted = 0 order by start_ms")?
+                .query_map([id], |r| r.get(0))?
+                .collect::<Result<_, _>>()?;
+            for t in segs {
+                add("transcript", t)?;
+            }
+        }
+        tx.execute("delete from search_stale where note_id = ?1", [id])?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+/// Own notes are Markdown; the index wants words only, so snippets show no marks. Same rules as generate.ts mdPlain.
+fn md_plain(md: &str) -> String {
+    md.lines()
+        .map(|l| {
+            let t = l.trim_start();
+            let marker = t.split_once(char::is_whitespace).map(|(m, _)| m).unwrap_or("");
+            let is_marker = !marker.is_empty()
+                && (marker.chars().all(|c| c == '#') || ["-", "*", "+", "•", ">"].contains(&marker)
+                    || (marker.len() > 1 && marker[..marker.len() - 1].chars().all(|c| c.is_ascii_digit()) && marker.ends_with(['.', ')'])));
+            let t = if is_marker { t[marker.len()..].trim_start() } else { t };
+            t.replace("**", "").replace("__", "").replace('`', "").trim_end_matches('\\').trim().to_string()
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Each word as a quoted prefix term, all required: `"rel"* "dat"*`. Quotes inside a word are doubled, so no FTS syntax leaks in.
+fn fts_query(q: &str) -> Option<String> {
+    let terms: Vec<String> = q.split_whitespace().map(|w| format!("\"{}\"*", w.replace('"', "\"\""))).collect();
+    (!terms.is_empty()).then(|| terms.join(" "))
+}
+
+/// Best hit per note, title matches first, then by bm25. Notes in the trash are left out.
+pub fn search_notes(conn: &Connection, q: &str) -> anyhow::Result<Vec<SearchHit>> {
+    refresh_search(conn)?;
+    let Some(fq) = fts_query(q) else { return Ok(vec![]) };
+    let mut st = conn.prepare(
+        "select f.note_id, n.title, n.created_at, f.field, snippet(search_fts, 2, '', '', '…', 10)
+         from search_fts f join notes n on n.id = f.note_id
+         where search_fts match ?1 and n.deleted_at is null
+         order by f.field = 'title' desc, bm25(search_fts) limit 500",
+    )?;
+    let rows = st.query_map([fq], |r| {
+        Ok(SearchHit { id: r.get(0)?, title: title_of(&r.get::<_, String>(1)?), created_at: r.get(2)?, field: r.get(3)?, snippet: r.get(4)? })
+    })?;
+    let mut seen = std::collections::HashSet::new();
+    let mut out = vec![];
+    for h in rows {
+        let h = h?;
+        if seen.insert(h.id.clone()) {
+            out.push(h);
+            if out.len() == 20 {
+                break;
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// Every note not in the trash as "<day> <title>.md" in `dir`. Returns how many were written.
@@ -494,6 +576,37 @@ mod tests {
     use crate::db::mem;
 
     fn none(_: &str) -> LiveInfo { None }
+
+    #[test]
+    fn search_finds_every_field_follows_edits_and_skips_trash() {
+        let c = mem();
+        let a = create(&c, None).unwrap();
+        update_own(&c, &a, Some("Release check"), Some("- **budget** is final"), None).unwrap();
+        let b = create(&c, None).unwrap();
+        update_own(&c, &b, Some("Caf\u{e9} sync"), Some(""), None).unwrap();
+        let seg = |id: &str, note: &str, text: &str| c.execute(
+            "insert into transcript_segments (id, note_id, source, attribution, text, start_ms, end_ms, created_at) values (?1, ?2, 'microphone', 'me', ?3, 0, 1, 0)",
+            params![id, note, text]).unwrap();
+        seg("s1", &b, "we ship the release on Friday");
+        let ids = |q: &str| search_notes(&c, q).unwrap().into_iter().map(|h| h.id).collect::<Vec<_>>();
+
+        assert_eq!(ids("budg"), vec![a.clone()], "prefix match in own notes");
+        assert_eq!(ids("cafe"), vec![b.clone()], "accents ignored");
+        assert_eq!(ids("release"), vec![a.clone(), b.clone()], "title hit ranks above transcript hit");
+        assert_eq!(search_notes(&c, "friday").unwrap()[0].field, "transcript");
+        assert!(ids("budget friday").is_empty(), "every word must match in one field");
+        assert!(ids("\"* OR NEAR(").is_empty(), "FTS syntax in the query is plain text, not an error");
+        assert!(ids("   ").is_empty());
+        assert_eq!(search_notes(&c, "budget").unwrap()[0].snippet, "budget is final", "snippets show words, not Markdown");
+        assert_eq!(md_plain("## Agenda\n1. one\n> quote  \\\n#tag and 3 * 4"), "Agenda\none\nquote\n#tag and 3 * 4");
+
+        c.execute("update transcript_segments set deleted = 1 where id = 's1'", []).unwrap();
+        assert!(ids("friday").is_empty(), "deleted transcript lines drop out");
+        update_own(&c, &a, None, Some("plain"), None).unwrap();
+        assert!(ids("budget").is_empty(), "edited notes reindex");
+        trash(&c, &[a.clone()], |_| false).unwrap();
+        assert!(ids("release").iter().all(|i| i != &a), "trashed notes are hidden");
+    }
 
     #[test]
     fn export_writes_one_file_per_live_note_and_never_overwrites() {

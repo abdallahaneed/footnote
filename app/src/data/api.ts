@@ -13,7 +13,7 @@ export const {
   calendarUpcoming, noteCreate, noteOpenForEvent, notesList, noteGet, noteUpdateOwn, recordingStart, recordingStop, generateNotes,
   transcriptDeleteSegment, transcriptCopyAll, transcriptRetry, templatesList, templateSave, templateDelete, foldersTree, folderSave,
   folderDelete, notesAddToFolder, notesRemoveFromFolder, noteTrash, noteRestore, noteDeleteForever, noteCopyMarkdown, noteEmailDraft,
-  searchIndex, chatSend, calendarSourcesList, calendarAddSource, calendarSourceDelete,
+  searchIndex, searchNotes, chatSend, calendarSourcesList, calendarAddSource, calendarSourceDelete,
   settingsGet, settingsUpdate, permissionsGet, permissionRequest, notesExport, meetingTakeNotes, meetingDismiss,
 } = api;
 

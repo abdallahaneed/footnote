@@ -291,7 +291,7 @@ export function Avatar({ name, src, size = 24, square }: { name: string; src?: s
 
 /* Option list: shared by the command palette (S19) and the slash menu (S07, S10) ------------ */
 
-export type Option = { id: string; label: string; hint?: string; icon?: ReactNode };
+export type Option = { id: string; label: string; hint?: string; icon?: ReactNode; detail?: string }; // detail: second line, e.g. a search snippet
 
 const filterOptions = (items: Option[], q: string) => items.filter((o) => o.label.toLowerCase().includes(q.trim().toLowerCase()));
 
@@ -315,9 +315,12 @@ function OptionList({ id, label, items, active, setActive, onPick, empty }: {
       {items.map((o, i) => (
         <li key={o.id} id={`${id}-${o.id}`} role="option" aria-selected={i === active} onMouseEnter={() => setActive(i)}
           onMouseDown={(e) => { e.preventDefault(); onPick(o); }}
-          className={cx("flex h-8 cursor-default items-center gap-2 rounded-sm px-2 text-base", i === active && "bg-accent-soft")}>
+          className={cx("flex min-h-8 cursor-default items-center gap-2 rounded-sm px-2 text-base", o.detail && "py-1", i === active && "bg-accent-soft")}>
           {o.icon && <span className="text-muted" aria-hidden>{o.icon}</span>}
-          <span className="truncate">{o.label}</span>
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate">{o.label}</span>
+            {o.detail && <span className="truncate text-sm text-muted">{o.detail}</span>}
+          </span>
           {o.hint && <span className="ml-auto shrink-0 text-xs text-muted">{o.hint}</span>}
         </li>
       ))}
@@ -326,10 +329,12 @@ function OptionList({ id, label, items, active, setActive, onPick, empty }: {
 }
 
 // search replaces the label filter, e.g. for full-text search over note bodies.
-export function CommandPalette({ open, onOpenChange, items, onPick, search }: {
+export function CommandPalette({ open, onOpenChange, items, onPick, search, onQuery }: {
   open: boolean; onOpenChange: (o: boolean) => void; items: Option[]; onPick: (o: Option) => void; search?: (q: string) => Option[];
+  onQuery?: (q: string) => void; // for searches that load results; they come back through search
 }) {
   const [q, setQ] = useState("");
+  useEffect(() => onQuery?.(q), [q]);
   const shown = useMemo(() => (search ? search(q) : filterOptions(items, q)), [items, q, search]);
   const pick = (o: Option) => { onPick(o); onOpenChange(false); setQ(""); };
   const { active, setActive, onKeyDown } = useOptionKeys(shown, pick);

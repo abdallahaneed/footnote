@@ -40,3 +40,6 @@ export type Settings = {
 
 export type Permission = "granted" | "denied" | "undetermined" | "unknown";
 export type Permissions = { mic: Permission; systemAudio: Permission };
+
+// S19 full-text search: best match per note. field says where it matched.
+export type SearchHit = { id: string; title: string; createdAt: number; field: "title" | "notes" | "generated" | "transcript"; snippet: string };

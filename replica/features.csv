@@ -67,7 +67,7 @@ Multi-select notes with checkbox and shift-click,organise,should,yes,partial,S05
 Auto-add recurring meetings to folder,organise,should,yes,no,F09
 Sidebar toggle shortcut,organise,should,yes,yes,⌘S / Ctrl+S; build: Cmd/Ctrl+S
 Command palette ⌘K,search,must,yes,yes,S19; build: S19
-Fast full-text search over notes and transcripts,search,must,yes,partial,SQLite FTS5; build: in-memory search over all text; FTS5 in replica-backend; backend: index sent to the palette; FTS5 table exists but is unused
+Fast full-text search over notes and transcripts,search,must,yes,yes,"S19; SQLite FTS5 in the core: word-start matches, accents ignored, every word required, title hits first, snippet says where it matched; triggers mark changed notes and the index catches up before each search; trashed notes left out"
 Offline access,platform,must,yes,yes,local-first by default; build: all local; storage is browser storage until SQLite; backend: SQLite in the app-data folder; only calendar sync needs the network
 Dark mode,platform,should,yes,partial,changelog Nov 2024; build: follows the system; no manual switch yet (S28)
 Add images to a note,notes,should,yes,no,changelog Nov 2024

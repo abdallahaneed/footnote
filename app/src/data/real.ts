@@ -3,7 +3,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { notify } from "./store";
 import { go } from "../app/router";
-import type { CalendarEvent, Folder, Note, Permissions, Segment, Settings, Template } from "./types";
+import type { CalendarEvent, Folder, Note, Permissions, SearchHit, Segment, Settings, Template } from "./types";
 
 // The core emits "changed" after every write and as background work moves on; screens reload.
 if ("__TAURI_INTERNALS__" in window) listen("changed", notify);
@@ -37,7 +37,8 @@ export const noteRestore = (id: string) => invoke<void>("note_restore", { id });
 export const noteDeleteForever = (id: string) => invoke<void>("note_delete_forever", { id });
 export const noteCopyMarkdown = (id: string) => invoke<string>("note_copy_markdown", { id });
 export const noteEmailDraft = (id: string) => invoke<string>("note_email_draft", { id });
-export const searchIndex = () => invoke<{ notes: { id: string; title: string; createdAt: number; text: string }[]; folders: Folder[] }>("search");
+export const searchIndex = () => invoke<{ notes: { id: string; title: string; createdAt: number }[]; folders: Folder[] }>("search");
+export const searchNotes = (q: string) => invoke<SearchHit[]>("search_notes", { q });
 
 export type CalendarSource = { id: string; label: string; lastSyncAt?: number; lastError?: string; events: number };
 export const calendarSourcesList = () => invoke<CalendarSource[]>("calendar_sources_list");

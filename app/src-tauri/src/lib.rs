@@ -324,6 +324,12 @@ fn search(st: State<St>) -> R<Index> {
     read(&st, |c| Ok(Index { notes: notes::search_index(c)?, folders: notes::folders(c)? }))
 }
 
+// read, not write: refreshing the index must not send "changed", or open screens would reload on every keystroke
+#[tauri::command(async)]
+fn search_notes(st: State<St>, q: String) -> R<Vec<notes::SearchHit>> {
+    read(&st, |c| notes::search_notes(c, &q))
+}
+
 #[derive(Serialize)]
 struct ChatResult {
     citations: Vec<chat::Citation>,
@@ -540,6 +546,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            search_notes,
             calendar_upcoming, calendar_sources_list, calendar_add_source, calendar_source_delete,
             note_create, note_open_for_event, notes_list, note_get, note_update_own,
             recording_start, recording_stop, generate_notes,

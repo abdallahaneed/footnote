@@ -208,7 +208,7 @@ test("command palette finds text inside transcripts", async ({ page }) => {
   await page.keyboard.press("ControlOrMeta+k");
   const box = page.getByRole("combobox", { name: "Search notes and commands" });
   await box.fill("references");
-  await expect(page.getByRole("option", { name: /Hiring sync/ })).toContainText("Found in text");
+  await expect(page.getByRole("option", { name: /Hiring sync/ })).toContainText(/In (transcript|generated notes): .*references/);
   await page.screenshot({ path: `${shots}/S19.png` });
   await box.press("Enter");
   await expect(page.getByLabel("Note title")).toHaveValue("Hiring sync");

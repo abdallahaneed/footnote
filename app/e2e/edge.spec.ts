@@ -568,3 +568,30 @@ test("F03-E14 title typed right before a refresh is saved", async ({ page }) => 
   await page.reload();
   await expect(page.getByLabel("Note title")).toHaveValue("Refresh title");
 });
+
+test("F13-E2 palette search: word starts, any order, no accents needed, own notes say where they matched", async ({ page }) => {
+  await open(page, "/");
+  await newNote(page);
+  await page.getByLabel("Note title").fill("Réunion café");
+  await page.getByRole("textbox", { name: "My notes" }).click();
+  await page.keyboard.type("- quarterly budget is final");
+  await page.waitForTimeout(600);
+  await page.keyboard.press("ControlOrMeta+k");
+  const box = page.getByRole("combobox", { name: "Search notes and commands" });
+  await box.fill("cafe reun");
+  await expect(page.getByRole("option", { name: /Réunion café/ })).toBeVisible();
+  await box.fill("fin quart");
+  await expect(page.getByRole("option", { name: /Réunion café/ })).toContainText("In your notes: quarterly budget is final");
+  await box.fill("udget"); // inside a word: not a match, like FTS5
+  await expect(page.getByRole("option", { name: /Réunion café/ })).toHaveCount(0);
+  await box.fill('"* OR NEAR(');
+  await expect(page.getByText(/Nothing matches/)).toBeVisible();
+});
+
+test("F13-N1 palette search: a core error shows no results instead of crashing", async ({ page }) => {
+  await open(page, "/", "?fail=search_notes");
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.getByRole("combobox", { name: "Search notes and commands" }).fill("hiring");
+  await expect(page.getByRole("option", { name: "Go to home" })).toHaveCount(0);
+  await expect(page.getByRole("option", { name: /Hiring sync/ })).toHaveCount(0);
+});
