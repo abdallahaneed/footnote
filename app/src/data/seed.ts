@@ -95,8 +95,8 @@ export function seed(now: number): DB {
     segments: [...hiring.segments, ...roadmap.segments, ...vendor.segments, ...scratch.segments],
     templates: structuredClone(TEMPLATES),
     folders: [
-      { id: "f-hiring", name: "Hiring", description: "Interviews and debriefs for open roles." },
-      { id: "f-product", name: "Product", description: "Roadmap, releases and reviews." },
+      { id: "f-hiring", name: "Hiring", description: "Interviews and debriefs for open roles.", icon: "users" },
+      { id: "f-product", name: "Product", description: "Roadmap, releases and reviews.", icon: "rocket" },
     ],
   };
 }

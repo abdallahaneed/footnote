@@ -6,6 +6,7 @@ import { ChatBar } from "../ui/notes";
 import { LoadError, Page, WithPanel } from "../app/Layout";
 import { go } from "../app/router";
 import { FolderDialog } from "../app/Sidebar";
+import { FolderGlyph } from "../ui/folderIcons";
 import { folderDelete, foldersTree, notesList, notesRemoveFromFolder } from "../data/api";
 import { useLive } from "../data/store";
 import { NoteList } from "./NoteList";
@@ -32,11 +33,11 @@ export function FolderScreen({ id }: { id: string }) {
       <Page>
         <header className="mb-6 flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="flex items-center gap-2 text-xl font-bold"><FolderOpen className="size-5 shrink-0 text-muted" aria-hidden /><span className="truncate">{folder.name}</span></h1>
+            <h1 className="flex items-center gap-2 text-xl font-bold"><span className="shrink-0 text-muted"><FolderGlyph icon={folder.icon} className="size-5" /></span><span className="truncate">{folder.name}</span></h1>
             {folder.description && <p className="mt-1 text-sm text-muted">{folder.description}</p>}
           </div>
           <Menu trigger={<button aria-label="Folder actions" className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-fg"><MoreHorizontal className="size-4" aria-hidden /></button>}
-            items={[{ label: "Rename", onSelect: () => setRenaming(true) }, { label: "Delete folder", danger: true, onSelect: () => setDeleting(true) }]} />
+            items={[{ label: "Edit folder", onSelect: () => setRenaming(true) }, { label: "Delete folder", danger: true, onSelect: () => setDeleting(true) }]} />
         </header>
         {error && <div className="mb-4"><LoadError message={error} onRetry={() => setError(undefined)} /></div>}
         <NoteList notes={notes} folders={(folders.data ?? []).filter((f) => f.id !== id)}

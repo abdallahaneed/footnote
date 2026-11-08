@@ -72,6 +72,7 @@ pub struct Folder {
     pub id: String,
     pub name: String,
     pub description: String,
+    pub icon: Option<String>,
     pub count: i64,
 }
 
@@ -308,28 +309,32 @@ pub fn template_delete(conn: &Connection, id: &str) -> anyhow::Result<()> {
 
 pub fn folders(conn: &Connection) -> anyhow::Result<Vec<Folder>> {
     let mut st = conn.prepare(
-        "select f.id, f.name, f.description,
+        "select f.id, f.name, f.description, f.icon,
            (select count(*) from note_folders nf join notes n on n.id = nf.note_id where nf.folder_id = f.id and n.deleted_at is null)
          from folders f order by f.position, f.name",
     )?;
-    Ok(st.query_map([], |r| Ok(Folder { id: r.get(0)?, name: r.get(1)?, description: r.get(2)?, count: r.get(3)? }))?.collect::<Result<_, _>>()?)
+    Ok(st.query_map([], |r| Ok(Folder { id: r.get(0)?, name: r.get(1)?, description: r.get(2)?, icon: r.get(3)?, count: r.get(4)? }))?.collect::<Result<_, _>>()?)
 }
 
-pub fn folder_save(conn: &Connection, id: Option<&str>, name: &str, description: &str) -> anyhow::Result<String> {
+/// `icon` is a key the UI maps to a glyph; None keeps the current one. Only short lowercase keys are stored.
+pub fn folder_save(conn: &Connection, id: Option<&str>, name: &str, description: &str, icon: Option<&str>) -> anyhow::Result<String> {
     let name = name.trim();
+    if let Some(i) = icon {
+        ensure!(!i.is_empty() && i.len() <= 32 && i.chars().all(|c| c.is_ascii_lowercase() || c == '-'), "That icon is not available.");
+    }
     ensure!(!name.is_empty(), "Give the folder a name.");
     ensure!(name.chars().count() <= 40, "Keep the name under 40 characters.");
     let description: String = description.trim().chars().take(500).collect();
     let now = now_ms();
     let found = match id {
-        Some(id) => conn.execute("update folders set name = ?2, description = ?3, updated_at = ?4 where id = ?1", params![id, name, description, now])? == 1,
+        Some(id) => conn.execute("update folders set name = ?2, description = ?3, icon = coalesce(?5, icon), updated_at = ?4 where id = ?1", params![id, name, description, now, icon])? == 1,
         None => false,
     };
     if found {
         return Ok(id.unwrap().to_string());
     }
     let new = uid();
-    conn.execute("insert into folders (id, name, description, created_at, updated_at) values (?1, ?2, ?3, ?4, ?4)", params![new, name, description, now])?;
+    conn.execute("insert into folders (id, name, description, icon, created_at, updated_at) values (?1, ?2, ?3, ?5, ?4, ?4)", params![new, name, description, now, icon])?;
     Ok(new)
 }
 
@@ -641,12 +646,17 @@ mod tests {
         assert_eq!((n.title.as_str(), n.own_text.as_str(), n.template_id.as_str(), n.status.as_str()), ("Plan", "line one", "t-standup", "draft"));
         assert!(update_own(&c, &id, None, None, Some("nope")).is_err());
 
-        let f = folder_save(&c, None, "Hiring", "").unwrap();
+        let f = folder_save(&c, None, "Hiring", "", None).unwrap();
         add_to_folder(&c, &[id.clone()], &f).unwrap();
         add_to_folder(&c, &[id.clone()], &f).unwrap(); // idempotent
         assert_eq!(list(&c, Some(&f), false, none).unwrap().len(), 1);
         assert_eq!(folders(&c).unwrap()[0].count, 1);
-        assert!(folder_save(&c, None, "  ", "").is_err());
+        assert!(folder_save(&c, None, "  ", "", None).is_err());
+        folder_save(&c, Some(&f), "Hiring", "", Some("users")).unwrap();
+        assert_eq!(folders(&c).unwrap()[0].icon.as_deref(), Some("users"));
+        folder_save(&c, Some(&f), "Hiring 2026", "", None).unwrap();
+        assert_eq!(folders(&c).unwrap()[0].icon.as_deref(), Some("users"), "a rename without an icon keeps it");
+        assert!(folder_save(&c, Some(&f), "Hiring", "", Some("<svg onload=x>")).is_err());
 
         trash(&c, &[id.clone()], |_| false).unwrap();
         assert_eq!(list(&c, None, true, none).unwrap().len(), 1);

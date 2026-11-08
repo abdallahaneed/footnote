@@ -252,7 +252,8 @@ export const folderSave = (f: Partial<Folder> & { name: string }) => call("folde
   if (!name) throw new Error("Give the folder a name.");
   if (name.length > 40) throw new Error("Keep the name under 40 characters.");
   const existing = f.id ? db.folders.find((x) => x.id === f.id) : undefined;
-  const saved: Folder = { id: existing?.id ?? uid(), name, description: (f.description ?? "").trim() };
+  if (f.icon && !/^[a-z-]{1,32}$/.test(f.icon)) throw new Error("That icon is not available.");
+  const saved: Folder = { id: existing?.id ?? uid(), name, description: (f.description ?? "").trim(), icon: f.icon ?? existing?.icon ?? null };
   if (existing) Object.assign(existing, saved); else db.folders.push(saved);
   commit();
   return saved;

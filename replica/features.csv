@@ -60,7 +60,7 @@ Share or remix recipes,recipes,could,yes,no,needs sync or export/import file
 Pre-meeting brief,briefs,should,yes,no,S25; paid feature in Granola
 Follow-up email draft,briefs,should,yes,no,S26; paid feature in Granola
 Spaces (My notes + custom),organise,should,yes,no,S06
-Folders with icon and description,organise,must,yes,partial,S06 S23; build: name and description; no custom icon
+Folders with icon and description,organise,must,yes,yes,"S06 S23; name, description and one of 16 icons (keyboard radio group in the folder dialog); icon shows in the sidebar, folder header and palette; stored as a key in folders.icon"
 Subfolders one level,organise,could,yes,no,S06
 Note in many folders,organise,must,yes,yes,data model NoteFolder
 Multi-select notes with checkbox and shift-click,organise,should,yes,partial,S05; build: checkboxes and bar; no shift-click range

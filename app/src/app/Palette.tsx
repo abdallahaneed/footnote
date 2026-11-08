@@ -1,9 +1,10 @@
 // S19 command palette: commands, folders, and full-text search over titles, own notes, generated notes and transcripts.
 import { useCallback, useEffect, useState } from "react";
-import { FileText, Folder, LayoutTemplate, Plus, Settings, Trash2, Home } from "lucide-react";
+import { FileText, LayoutTemplate, Plus, Settings, Trash2, Home } from "lucide-react";
 import { CommandPalette, type Option } from "../ui/notes";
 import { noteCreate, searchIndex, searchNotes } from "../data/api";
 import type { SearchHit } from "../data/types";
+import { FolderGlyph } from "../ui/folderIcons";
 import { useLive } from "../data/store";
 import { dayLabel } from "../data/format";
 import { go } from "./router";
@@ -39,7 +40,7 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange: (
       detail: h.field === "title" ? undefined : `${FOUND_IN[h.field]}: ${h.snippet}`,
     }));
     const folders = (idx.data?.folders ?? []).filter((f) => !s || has(f.name)).map((f) => ({
-      id: `go:/folder/${f.id}`, label: f.name, hint: "Folder", icon: <Folder className="size-4" />,
+      id: `go:/folder/${f.id}`, label: f.name, hint: "Folder", icon: <FolderGlyph icon={f.icon} />,
     }));
     const cmds = COMMANDS.filter((c) => !s || has(c.label));
     return s ? [...notes, ...folders, ...cmds] : [...cmds, ...recent];

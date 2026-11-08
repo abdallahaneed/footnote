@@ -239,6 +239,7 @@ struct FolderIn {
     id: Option<String>,
     name: String,
     description: Option<String>,
+    icon: Option<String>,
 }
 
 #[tauri::command(async)]
@@ -247,7 +248,7 @@ fn folder_save(st: State<St>, folder: FolderIn) -> R<Folder> {
         check_id(id)?;
     }
     write(&st, |c| {
-        let id = notes::folder_save(c, folder.id.as_deref(), &folder.name, folder.description.as_deref().unwrap_or(""))?;
+        let id = notes::folder_save(c, folder.id.as_deref(), &folder.name, folder.description.as_deref().unwrap_or(""), folder.icon.as_deref())?;
         notes::folders(c)?.into_iter().find(|f| f.id == id).ok_or_else(|| anyhow::anyhow!("folder vanished"))
     })
 }

@@ -595,3 +595,33 @@ test("F13-N1 palette search: a core error shows no results instead of crashing",
   await expect(page.getByRole("option", { name: "Go to home" })).toHaveCount(0);
   await expect(page.getByRole("option", { name: /Hiring sync/ })).toHaveCount(0);
 });
+
+test("S23-E1 folder icon: pick by keyboard, kept after edit, no axe issues in the dialog at 390px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page, "/");
+  await page.getByRole("button", { name: "Show sidebar" }).click();
+  await page.getByRole("button", { name: "New folder" }).click();
+  const dialog = page.getByRole("dialog", { name: "New folder" });
+  await dialog.getByLabel("Name").fill("Customer calls ✨ with a long name x");
+  await dialog.getByRole("radio", { name: "Folder" }).focus();
+  await expect(dialog.getByRole("radio", { name: "Folder" })).toBeChecked();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await expect(dialog.getByRole("radio", { name: "Team" })).toBeChecked();
+  const axe = await new AxeBuilder({ page }).include("[role=dialog]").analyze();
+  expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: "../replica/clone-screens/S23-icon-picker-390.png" });
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await expect(page).toHaveURL(/#\/folder\//);
+  await page.getByRole("button", { name: "Folder actions" }).click();
+  await page.getByRole("menuitem", { name: "Edit folder" }).click();
+  const edit = page.getByRole("dialog", { name: "Edit folder" });
+  await expect(edit.getByRole("radio", { name: "Team" })).toBeChecked();
+  await edit.getByLabel("Name").fill("Customer calls");
+  await edit.getByRole("button", { name: "Save" }).click();
+  await page.reload();
+  await page.getByRole("button", { name: "Folder actions" }).click();
+  await page.getByRole("menuitem", { name: "Edit folder" }).click();
+  await expect(page.getByRole("dialog", { name: "Edit folder" }).getByRole("radio", { name: "Team" })).toBeChecked();
+});
