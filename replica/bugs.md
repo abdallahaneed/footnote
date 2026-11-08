@@ -20,7 +20,7 @@ Expected: error "Stop recording before moving this note to the trash.", both not
 Actual: the error shows, but "Roadmap check-in" disappears from home within 1.5 s and is in the trash (Trash count 2).
 Evidence: test "F14-N1 trashing a selection that includes a live recording trashes nothing" (edge.spec.ts)
 Suspected cause: fake `noteTrash` set `deletedAt` note by note and threw midway; the next transcript tick committed the half-done change. The Rust core already checks first inside a transaction, so this was browser-build only.
-Status: fixed in the commit that adds edge.spec.ts (see git log)
+Status: fixed in 26eeac6
 
 ### BUG-002: title typed just before pressing Back is lost
 
@@ -37,7 +37,7 @@ Expected: home lists "Quick back".
 Actual: home lists "Untitled note".
 Evidence: test "F03-E3 title typed then back button right away is saved"
 Suspected cause: TitleInput saved on a 400 ms debounce and on blur, but not on unmount; the debounce was cancelled when the screen unmounted. The notes body already saved on unmount. Affects both the fake and the desktop app.
-Status: fixed in the commit that adds edge.spec.ts
+Status: fixed in 26eeac6
 
 ### BUG-003: double click on New note creates two notes
 
@@ -52,7 +52,7 @@ Steps
 Expected: one new "Untitled note".
 Actual: two.
 Evidence: test "F03-E1 double click on New note makes one note" (Expected 1, Received 2)
-Status: fixed in the commit that adds edge.spec.ts
+Status: fixed in 26eeac6
 
 ### BUG-004: transcript panel offers Resume and Transcribe again while notes are being written
 
@@ -68,7 +68,7 @@ Steps
 Expected: Resume disabled, Transcribe again hidden until the run ends.
 Actual: both enabled.
 Evidence: test "F04-E2 Transcribe again while busy does not run twice"
-Status: fixed in the commit that adds edge.spec.ts
+Status: fixed in 26eeac6
 
 ## To check
 
