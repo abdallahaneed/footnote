@@ -1,6 +1,6 @@
 # Test plan: meeting-notes clone
 
-Build: dd0bbe2, second round on 797c5af (S03, S28, export), plus the fixes in bugs.md  Date: 2026-11-08  Env: local, `npm run dev` (fake data layer, seed data), Chromium 1440px and 390px
+Build: dd0bbe2, second round on 797c5af (S03, S28, export), third on b721afe (S20), fourth on 8161809 (S07 rich text editor), plus the fixes in bugs.md  Date: 2026-11-08  Env: local, `npm run dev` (fake data layer, seed data), Chromium 1440px and 390px
 Specs: app/e2e/app.spec.ts (happy paths, axe, widths), app/e2e/edge.spec.ts (edge and negative cases), app/e2e/design.spec.ts (components). Every spec fails on page errors and console errors; edge.spec.ts also fails on any 5xx response.
 
 Scope: milestone 1 screens that are built (S02 calendar links, S05-S10, S13, S19, S22, S23). F01 sign-in/permissions, F08, F10-F12, F15-F17 hit "Not built yet" stubs and are blocked, not failed.
@@ -22,6 +22,20 @@ Scope: milestone 1 screens that are built (S02 calendar links, S05-S10, S13, S19
 | F03-E2 | | edge: emoji, accents, 250-char title | type, reload | kept, clipped at 200 | e2e edge | pass |
 | F03-E3 | | edge: Back right after typing title | type, Back | title saved | e2e edge | pass after BUG-002 fix |
 | F03-E4 | | edge: Back right after typing notes | type, Back | notes saved | e2e edge | pass |
+| F03-E5 | | edge: Markdown characters typed as text (* _ # <b> [x](y) % & "1. 2.") | type, reload | same text back | e2e edge | pass |
+| F03-E6 | | edge: blank line between notes | first, Enter, Enter, second, Copy as Markdown | no &nbsp; in the copy | e2e edge | pass |
+| F03-E7 | | edge: empty input | type, select all, delete, reload | empty, hint shows again | e2e edge | pass |
+| F03-E8 | | edge: paste plain text with line breaks | paste 3 lines, reload | 3 lines | e2e edge | pass |
+| F03-E9 | | edge: click a typed link | autolinked https URL, click | app does not navigate, no new window | e2e edge | pass |
+| F03-E10 | | edge: keyboard only, Tab out | Tab on a plain line | focus leaves the editor, text unchanged | e2e edge | pass |
+| F03-E11 | | edge: keyboard only, Tab in a list | Tab on a second item | item indents | e2e edge | pass |
+| F03-E12 | | edge: very long input | paste 2000 lines, reload | all kept | e2e edge | pass |
+| F03-E13 | | edge: refresh right after typing notes | type, refresh at once | notes saved | e2e edge | pass after BUG-010 fix |
+| F03-E14 | | edge: refresh right after typing a title | type, refresh at once | title saved | e2e edge | pass after BUG-010 fix |
+| F05-E1 | | edge: slash menu Escape, slash mid-line | / Esc; "and/or" | menu closes, slash kept; no menu mid-line | e2e edge | pass |
+| F05-E2 | | edge: slash menu inside a list item | "- keep me", "/one" Enter | template set, list item kept | e2e edge | pass |
+| F05-E3 | | edge: formatted own notes into generated notes | heading + bold bullet, switch template | own line "budget", no ** or ## | e2e edge | pass |
+| S07-A1 | | screen reader and contrast: editor at 1440/390, light/dark | axe scan | no serious issues, no sideways scroll | e2e app | pass |
 | F04-H1 | transcript edit | happy | delete a line | line gone | e2e app | pass |
 | F04-E1 | | edge: deleted line after regenerate | delete, switch template, Copy all | line absent from transcript copy | e2e edge | pass |
 | F04-E2 | | edge: re-run while busy | Transcribe again | no second run or resume offered while transcribing | e2e edge | pass after BUG-004 fix |
@@ -85,6 +99,7 @@ Not automatable from Playwright because the browser run uses the fake layer. Run
 4. F02: system audio from Zoom/Meet as "them" in an interview; echo filter keeps your voice out of their side.
 5. Email to attendees opens the mail app with subject and body; Copy as Markdown pastes cleanly.
 6. Calendar ICS link syncs real events into Upcoming, across a time-zone change.
+7. Own-notes editor in the desktop window (WKWebView, not Chromium): German dead keys (ä via Option-u), Cmd+B/I, Cmd+Z, "- " list, then Cmd+Q right after typing and reopen: the last words are there.
 
 ## To check (seen in code, not reproduced as a user-visible bug)
 
@@ -98,3 +113,5 @@ Not automatable from Playwright because the browser run uses the fake layer. Run
 8. Pop-ups that open in different 15-second checks stack from the same top position, so a second meeting a minute after the first would cover it. Not reproduced; seen in the code (the offset only counts meetings from one check).
 9. The pop-up opens without focus (on purpose, so it does not steal typing), which means keyboard-only users cannot reach Start notes without the mouse or Cmd+Tab. A global shortcut would fix it.
 10. The pop-up says "Starting now" from about a minute before the start.
+11. Whether WKWebView fires pagehide or visibilitychange when the Tauri window is closed or the app quits. The BUG-010 fix relies on it; checked in Chromium only (manual pass item 7).
+12. Notes saved before the editor, with single line breaks, are rewritten with Markdown hard breaks ("two spaces, newline") on their next edit. Same text, slightly different file in exports.

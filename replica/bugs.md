@@ -156,3 +156,21 @@ Actual: the rounded card with padding around it inside the square, undecorated w
 Evidence: screenshot of the real window during the 2026-11-08 run; test "S20-E5 the card fills the pop-up window, so no square frame shows around rounded corners"
 Fix: in the pop-up page the card fills the window: full width, square, no border or shadow.
 Status: fixed in 8977d37
+
+### BUG-010: notes or title typed just before a refresh are lost
+
+- Severity: S2 (typed text lost with no way back; only the last 400 ms of typing, so not S1)
+- Flow / case: F03 / F03-E13, F03-E14
+- Screen: S07, S09 (My notes)
+- Build: 8161809  Browser / device: Chromium, 1440px
+
+Steps
+1. Home > New note.
+2. Type "typed then refresh" in My notes (or a title).
+3. Refresh within 400 ms of the last key.
+
+Expected: the note reopens with the text.
+Actual: notes and title are empty.
+Evidence: tests "F03-E13 notes typed right before a refresh are saved" and "F03-E14 title typed right before a refresh is saved" (edge.spec.ts), both failed before the fix.
+Suspected cause: saves ran on a 400 ms pause, on blur and on unmount. A refresh or window close runs none of those. Present since the first build (the old textarea had it too). In the desktop app the same gap applies to quitting or closing the window right after typing. Fix: both editors also save on pagehide and when the window is hidden; the fake data layer now applies a command at once and answers 60 ms later, like Tauri IPC, so a save sent while the page unloads lands.
+Status: fixed in 2b321b1
