@@ -84,7 +84,7 @@ Companies view from email domains,people,could,yes,no,S17
 Person / company detail with notes,people,could,yes,no,S18
 Copy enhanced notes as markdown,share,must,yes,yes,S09 three-dots
 Send notes via email draft (mailto),share,should,yes,yes,S09
-Export all notes (markdown / CSV),share,must,yes,partial,"S28 Export all notes: one markdown file per note in ~/Documents/Meeting notes <date>, Show in Finder; Rust notes_export compiled, not yet run in the desktop app; no CSV"
+Export all notes (markdown / CSV),share,must,yes,partial,"S28 Export all notes: one markdown file per note in ~/Documents/Meeting notes <date>, Show in Finder; Rust export_all unit-tested (name clashes, trashed notes); command not yet run in the desktop app; no CSV"
 Share note by link with viewer/collaborator roles,share,could,yes,no,S14; needs sync server
 Request and grant access,share,could,yes,no,S15; needs sync server
 Web viewer for shared notes,share,could,yes,no,S36; needs server
@@ -114,7 +114,7 @@ Crash-safe local audio segments written during recording,capture,must,no,yes,fix
 Re-run transcription and notes from saved audio,transcript,must,no,yes,fixes.md #1; build: Transcribe again button on fake pipeline; backend: transcript_retry
 Visible pipeline status per note with Retry on failure,enhance,must,no,yes,"fixes.md #2; review-14632129571; build: status chip on rows and notes, banner with Try again"
 Every enhanced line links to transcript timestamp and plays audio,enhance,must,no,partial,fixes.md #4; hallucination complaints 5 reviews 3 sources; build: jumps to the transcript line; audio playback needs the Rust audio_play_range; backend: sources validated in Rust; audio playback not built
-Summary length switch short / normal / detailed,enhance,should,no,yes,"S28 select; the enhance prompt uses it (desktop); fixes.md #5"
+Summary length switch short / normal / detailed,enhance,should,no,yes,S28 select; the enhance prompt uses it (desktop); fixes.md #5
 Notes saved as markdown files in a user-chosen folder,notes,must,no,partial,"fixes.md #6; export paywall complaint; backend: mirror written after each note; folder set only via settings_update, no screen"
 Private-by-default notice and no automatic folder visibility,privacy,should,no,no,fixes.md #7; HN item 44736878
 Meeting duration shown on every note,notes,should,no,yes,fixes.md #8; review-13656690485; build: rows and note header
