@@ -7,6 +7,8 @@ import { chatSend } from "../data/api";
 
 type Msg = { role: "user" | "assistant"; text: string; citations?: { label: string; href: string }[]; error?: string; streaming?: boolean };
 const SUGGESTIONS = ["List the action items", "Draft a follow-up email", "What did we decide?"];
+// Across several notes, e.g. an Interviews folder: preparing for the next one.
+const ACROSS = ["Which questions came up in more than one interview?", "Where were my answers weakest?"];
 
 export function ChatPanel({ scope, first, onClose }: { scope: { ids: string[] | "all"; label: string }; first?: string; onClose: () => void }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -43,7 +45,7 @@ export function ChatPanel({ scope, first, onClose }: { scope: { ids: string[] | 
       {msgs.length === 0 ? (
         <div className="flex flex-col items-start gap-2">
           <p className="text-sm text-muted">Put a question to {scope.ids === "all" ? "all your notes" : "this note"}. Answers come from your notes and transcripts only.</p>
-          {SUGGESTIONS.map((s) => <Button key={s} size="sm" onClick={() => ask(s)}>{s}</Button>)}
+          {(scope.ids === "all" || scope.ids.length > 1 ? [...ACROSS, ...SUGGESTIONS] : SUGGESTIONS).map((s) => <Button key={s} size="sm" onClick={() => ask(s)}>{s}</Button>)}
         </div>
       ) : (
         <div className="flex flex-col gap-4" aria-live="polite">

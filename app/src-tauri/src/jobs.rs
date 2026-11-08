@@ -279,9 +279,25 @@ fn transcribe(core: &Core, job: &Job) -> anyhow::Result<()> {
     let tx = conn.unchecked_transaction()?;
     let (source, who) = if channel == "mic" { ("microphone", "me") } else { ("speaker", "them") };
     for p in pieces {
+        let (a, b) = (start + p.start_ms, start + p.end_ms.max(p.start_ms));
+        // Echo: on speakers the mic also hears the other side. A mic line that repeats a system line spoken at
+        // the same time is that echo, not you. Whichever channel is transcribed second removes it.
+        let near: Vec<(String, String)> = {
+            let mut st = tx.prepare(
+                "select id, text from transcript_segments where note_id = ?1 and attribution <> ?2 and deleted = 0 and start_ms < ?4 + 3000 and end_ms > ?3 - 3000",
+            )?;
+            st.query_map(params![note_id, who, a, b], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?
+        };
+        let echo: Vec<&String> = near.iter().filter(|(_, t)| same_words(t, &p.text)).map(|(id, _)| id).collect();
+        if who == "me" && !echo.is_empty() {
+            continue;
+        }
+        for id in echo {
+            tx.execute("delete from transcript_segments where id = ?1", [id])?;
+        }
         tx.execute(
             "insert into transcript_segments (id, note_id, audio_segment_id, source, attribution, text, start_ms, end_ms, created_at) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            params![uid(), note_id, seg, source, who, p.text, start + p.start_ms, start + p.end_ms.max(p.start_ms), now_ms()],
+            params![uid(), note_id, seg, source, who, p.text, a, b, now_ms()],
         )?;
     }
     tx.execute("update audio_segments set transcribed = 1 where id = ?1", [&seg])?;
@@ -293,6 +309,18 @@ fn transcribe(core: &Core, job: &Job) -> anyhow::Result<()> {
     }
     advance(&conn, &note_id)?;
     Ok(())
+}
+
+/// True when two lines are mostly the same words (echo of the same speech heard twice).
+pub fn same_words(a: &str, b: &str) -> bool {
+    let words = |t: &str| t.to_lowercase().split(|c: char| !c.is_alphanumeric()).filter(|w| w.len() > 1).map(str::to_string).collect::<Vec<_>>();
+    let (x, y) = (words(a), words(b));
+    let (short, long) = if x.len() <= y.len() { (&x, &y) } else { (&y, &x) };
+    if short.len() < 3 {
+        return false; // "yes", "okay" said by both is not an echo
+    }
+    let hits = short.iter().filter(|w| long.contains(w)).count();
+    hits * 10 >= short.len() * 7
 }
 
 pub fn llm(conn: &Connection) -> rusqlite::Result<Llm> {
@@ -440,6 +468,14 @@ mod tests {
     }
 
     #[test]
+    fn echo_detection() {
+        assert!(same_words("Tell me about a project you led.", "tell me about a project you led"));
+        assert!(same_words("Tell me about a project you led", "about a project you led last year, tell me"));
+        assert!(!same_words("Yes, okay", "yes okay"));
+        assert!(!same_words("I led the migration to Rust", "Tell me about a project you led"));
+    }
+
+    #[test]
     fn failure_is_visible_with_a_reason() {
         let c = mem();
         let id = notes::create(&c, None).unwrap();
@@ -458,6 +494,7 @@ mod tests {
     #[test]
     #[ignore]
     fn e2e_record_transcribe_write() {
+        let _one = capture::AUDIO_TEST.lock().unwrap_or_else(|e| e.into_inner());
         let data = std::env::temp_dir().join(format!("mn-e2e-{}", uid()));
         std::fs::create_dir_all(data.join("models")).unwrap();
         let qk = dirs_model();

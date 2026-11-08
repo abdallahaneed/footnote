@@ -3,7 +3,7 @@
 Date: 2026-11-07. Code: app/src-tauri (Rust core, Tauri v2). The UI calls it through app/src/data/real.ts; in a plain browser app/src/data/fake.ts stands in (Playwright runs against the fake). api.ts types the real layer against the fake, so the two cannot drift apart without a compile error.
 
 Run: cd app && npm run tauri dev. Data: ~/Library/Application Support/dev.abdallah.meetingnotes/ (app.db, audio/<note>/, models/).
-Tests: cd app/src-tauri && cargo test (16 unit tests); cargo test -- --ignored e2e (real audio through whisper, needs macOS `say`, ~10 s); cd app && npm run test:e2e (23 browser tests).
+Tests: cd app/src-tauri && cargo test (17 unit tests); cargo test -- --include-ignored (adds the real-audio tests: pipeline e2e and system audio, which plays a short sentence through the speakers); cd app && npm run test:e2e (23 browser tests).
 Note writing needs Ollama: brew install ollama, ollama pull llama3.2:3b, ollama serve. Without it, notes fail with "The local model did not answer..." and a Try again button.
 
 ## What the skill asks for, and what applies here
@@ -27,12 +27,16 @@ Note writing needs Ollama: brew install ollama, ollama pull llama3.2:3b, ollama 
 4. Note writing: Ollama or any OpenAI-compatible URL. Long meetings are condensed per 20k-character window first. The model cites [S#] lines; Rust keeps only references that exist (fix #4). The user's own lines are kept word for word and marked.
 5. Chat: keyword retrieval over notes and transcripts, answer streamed over a Tauri channel, citations link to notes.
 6. Calendar: ICS link (S02 screen added), recurring events expanded with their time zone (tested across the October DST change), 5-minute sync, events that leave the feed are removed.
-7. Quit safety: recordings are flushed and the whisper model freed on exit. Without that, ggml's Metal backend aborts the process at exit (found by the e2e test; Quietkey uses the same whisper-rs and has no such handling).
+7. System audio (2026-11-08): ScreenCaptureKit captures everything the Mac plays (any call app: Zoom, Teams, Meet, a browser) as the "Them" channel; this app's own sound is excluded. Needs the Screen & System Audio Recording permission. Tested for real: a sentence played through the speakers came back through whisper.
+8. Echo filter: a mic line that repeats a system line spoken within 3 s (70% of the same words, 3+ words) is dropped, so speakers do not turn the interviewer's words into "Me" lines.
+9. Interviews (2026-11-08): built-in "Job interview" template (questions and my answers, questions I asked, role facts, next steps, what to prepare next time), and chat suggestions across notes ("Which questions came up in more than one interview?"). Put interviews in one folder and ask the folder.
+10. Transcript only by default (migration 0003): audio_retention = delete_after_transcript. 30 s pieces exist on disk only until whisper has read them; then they are deleted. "Transcribe again" therefore only works while audio is kept (setting).
+11. Quit safety: recordings are flushed and the whisper model freed on exit. Without that, ggml's Metal backend aborts the process at exit (found by the e2e test; Quietkey uses the same whisper-rs and has no such handling).
 
 ## Not built (in order of risk)
 
-1. System audio capture. macOS: Core Audio process tap (14.2+) needs the Screen and System Audio Recording permission and a signed build. Windows: WASAPI loopback. The pipeline already takes a "system" channel. This is the biggest risk in the project and the next thing to build.
-2. Echo: on speakers the mic hears the other side twice. Needs AEC or dropping mic lines that match system lines.
+1. Windows system audio (WASAPI loopback). macOS is done.
+2. Real acoustic echo cancellation. The text-level filter covers the common case; heavy echo with different wording slips through. Headphones avoid it.
 3. Audio playback behind a cited line (audio_play_range).
 4. EventKit (macOS calendar without a link), meeting notifications (S20), call detection.
 5. Settings screen: model, URL, retention, jargon, markdown folder exist as settings_update but have no UI.
@@ -72,3 +76,11 @@ Secrets for these go in the macOS Keychain / Windows Credential Manager (integra
 2. Moved single instances of a recurring meeting (RECURRENCE-ID) show at the original time.
 3. One SQLite connection behind a mutex for UI and worker; the model calls run without the lock.
 4. The real data layer has not been clicked through in the desktop window yet (screen capture of the window needs a permission). The Rust side is covered by tests; the UI side by the type check against the fake.
+
+## Consent
+
+The app never tells the other party anything: no bot joins, no message is sent. It still captures their voice from the
+system output to transcribe it. In Germany, recording the non-public spoken word without consent is an offence
+(§201 StGB); in parts of the US both sides must agree. Defaults reduce exposure (no audio kept, transcript stays on the
+Mac, never shared) but do not make it legal advice. A one-time notice and a "copy consent message" button are still on
+the list (architecture.md, part 15).

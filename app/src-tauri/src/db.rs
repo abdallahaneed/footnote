@@ -1,7 +1,9 @@
 use rusqlite::Connection;
 use std::path::Path;
 
-const MIGRATIONS: &[&str] = &[include_str!("../migrations/0001_init.sql"), include_str!("../migrations/0002_templates.sql")];
+const MIGRATIONS: &[&str] = &[include_str!("../migrations/0001_init.sql"), include_str!("../migrations/0002_templates.sql"),
+    include_str!("../migrations/0003_interviews.sql"),
+];
 
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     let conn = Connection::open(path)?;
@@ -48,9 +50,12 @@ mod tests {
         let c = mem();
         migrate(&c).unwrap();
         let n: i64 = c.query_row("select count(*) from templates where built_in = 1", [], |r| r.get(0)).unwrap();
-        assert_eq!(n, 4);
+        assert_eq!(n, 5);
         let d: String = c.query_row("select default_template_id from settings", [], |r| r.get(0)).unwrap();
         assert_eq!(d, "t-standard");
+        // 0003: transcript only, audio removed once transcribed
+        let keep: String = c.query_row("select audio_retention from settings", [], |r| r.get(0)).unwrap();
+        assert_eq!(keep, "delete_after_transcript");
     }
 
     #[test]

@@ -1,6 +1,7 @@
 //! Recording. Each channel (mic now, system audio later) is cut into 30 s WAV files while recording, each file
 //! synced to disk before its row is written, so a crash loses at most the last unfinished segment (fix #1).
-//! System audio is not captured yet: macOS needs a Core Audio process tap (14.2+), Windows WASAPI loopback.
+//! "mic" is you; "system" is everything the Mac plays (Zoom, Teams, Meet, a browser call), which is the other side.
+//! System audio uses ScreenCaptureKit on macOS (Screen & System Audio Recording permission). Windows loopback: not built.
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -185,7 +186,82 @@ fn sources(mic_id: Option<String>) -> anyhow::Result<Vec<Chan>> {
         mic_permission() != "denied",
         "Microphone access is off. Turn it on in System Settings, Privacy & Security, Microphone, then try again."
     );
-    Ok(vec![mic(mic_id)?])
+    // System audio first: if its permission is missing, fail before the mic indicator turns on.
+    let them = system()?;
+    Ok(vec![mic(mic_id)?, them])
+}
+
+/// Everything the Mac plays, as one mono channel. Our own app's sound is left out.
+#[cfg(target_os = "macos")]
+fn system() -> anyhow::Result<Chan> {
+    use screencapturekit::prelude::*;
+    const RATE_IN: u32 = 48_000;
+    struct Audio(Arc<Mutex<Vec<f32>>>);
+    impl SCStreamOutputTrait for Audio {
+        fn did_output_sample_buffer(&self, sample: CMSampleBuffer, kind: SCStreamOutputType) {
+            if !matches!(kind, SCStreamOutputType::Audio) {
+                return;
+            }
+            let Ok(list) = sample.audio_buffer_list() else { return };
+            let chans: Vec<Vec<f32>> = (&list)
+                .into_iter()
+                .map(|b| b.data().chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect())
+                .collect();
+            let Some(n) = chans.iter().map(Vec::len).min().filter(|n| *n > 0) else { return };
+            let mut buf = self.0.lock().unwrap();
+            buf.extend((0..n).map(|i| chans.iter().map(|c| c[i]).sum::<f32>() / chans.len() as f32));
+        }
+    }
+    /// ScreenCaptureKit always sends video too; this one takes and drops it.
+    struct Ignore;
+    impl SCStreamOutputTrait for Ignore {
+        fn did_output_sample_buffer(&self, _: CMSampleBuffer, _: SCStreamOutputType) {}
+    }
+
+    let buf = Arc::new(Mutex::new(Vec::new()));
+    let (stop_tx, stop_rx) = mpsc::channel::<()>();
+    let (ready_tx, ready_rx) = mpsc::channel::<anyhow::Result<()>>();
+    let b = buf.clone();
+    std::thread::spawn(move || {
+        let run = || -> anyhow::Result<SCStream> {
+            let denied = "The other side of the call cannot be heard: turn on this app in System Settings, Privacy & Security, \
+                          Screen & System Audio Recording, then try again.";
+            let content = SCShareableContent::get().map_err(|_| anyhow::anyhow!(denied))?;
+            let display = content.displays().into_iter().next().ok_or_else(|| anyhow::anyhow!("No display found."))?;
+            let filter = SCContentFilter::create().with_display(&display).with_excluding_windows(&[]).build()?;
+            let config = SCStreamConfiguration::new()
+                .with_width(2) // video cannot be turned off; keep it tiny and rare
+                .with_height(2)
+                .with_minimum_frame_interval(&CMTime::new(1, 1))
+                .with_captures_audio(true)
+                .with_excludes_current_process_audio(true)
+                .with_sample_rate(RATE_IN as i32)
+                .with_channel_count(1);
+            let mut stream = SCStream::new(&filter, &config)?;
+            stream.add_output_handler(Audio(b.clone()), SCStreamOutputType::Audio)?;
+            stream.add_output_handler(Ignore, SCStreamOutputType::Screen)?;
+            stream.start_capture().map_err(|_| anyhow::anyhow!(denied))?;
+            Ok(stream)
+        };
+        match run() {
+            Ok(stream) => {
+                let _ = ready_tx.send(Ok(()));
+                let _ = stop_rx.recv();
+                let _ = stream.stop_capture();
+            }
+            Err(e) => {
+                let _ = ready_tx.send(Err(e));
+            }
+        }
+    });
+    ready_rx.recv_timeout(Duration::from_secs(10)).map_err(|_| anyhow::anyhow!("System audio did not start. Try again."))??;
+    Ok(Chan { name: "system", buf, rate: RATE_IN, _stop: stop_tx })
+}
+
+#[cfg(not(target_os = "macos"))]
+fn system() -> anyhow::Result<Chan> {
+    // shortcut: Windows WASAPI loopback not written yet; build it with the Windows port.
+    anyhow::bail!("Recording the other side of a call is only available on macOS so far.")
 }
 
 pub fn resample(input: &[f32], from: u32, to: u32) -> Vec<f32> {
@@ -281,6 +357,10 @@ pub fn stop(note_id: &str) {
     let _ = s.done.recv_timeout(Duration::from_secs(15));
 }
 
+/// Audio tests share env vars and the sound output: they take this lock to run one at a time.
+#[cfg(test)]
+pub static AUDIO_TEST: Mutex<()> = Mutex::new(());
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -299,9 +379,38 @@ mod tests {
         std::fs::remove_dir_all(dir).unwrap();
     }
 
+    /// Real ScreenCaptureKit: plays a spoken sentence through the speakers and checks the "system" channel heard
+    /// it, through whisper. Needs Screen & System Audio Recording permission for the terminal running it.
+    /// Run: cargo test -- --ignored system_audio
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore]
+    fn system_audio_hears_the_mac() {
+        let _one = AUDIO_TEST.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!("mn-sys-{}", crate::db::uid()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let clip = dir.join("q.aiff");
+        assert!(std::process::Command::new("say").args(["-o", clip.to_str().unwrap(), "Tell me about a project you are proud of."]).status().unwrap().success());
+        let chan = system().unwrap();
+        std::thread::sleep(Duration::from_millis(500));
+        assert!(std::process::Command::new("afplay").args(["-v", "0.3", clip.to_str().unwrap()]).status().unwrap().success());
+        std::thread::sleep(Duration::from_millis(500));
+        let samples = resample(&chan.buf.lock().unwrap(), chan.rate, RATE);
+        drop(chan);
+        assert!(has_speech(&samples), "system channel was silent ({} samples)", samples.len());
+        let model = crate::stt::ensure_model(&std::path::PathBuf::from(std::env::var("HOME").unwrap())
+            .join("Library/Application Support/dev.abdallah.quietkey/models"), |_, _| {}).unwrap();
+        let mut stt = crate::stt::Stt::load(&model).unwrap();
+        let text: String = stt.transcribe(&samples, Some("en"), "").unwrap().into_iter().map(|p| p.text).collect::<Vec<_>>().join(" ");
+        drop(stt); // free before exit (Metal)
+        assert!(text.to_lowercase().contains("project"), "heard: {text}");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
     #[cfg(debug_assertions)]
     #[test]
     fn records_segments_from_a_test_wav() {
+        let _one = AUDIO_TEST.lock().unwrap_or_else(|e| e.into_inner());
         let dir = std::env::temp_dir().join(format!("mn-rec-{}", crate::db::uid()));
         std::fs::create_dir_all(&dir).unwrap();
         let src = dir.join("src.wav");

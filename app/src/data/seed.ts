@@ -25,6 +25,14 @@ export const TEMPLATES: Template[] = [
     { heading: "Up next", instructions: "Planned for today." },
     { heading: "Blockers", instructions: "Anything in the way." },
   ] },
+  // Same text as src-tauri/migrations/0003_interviews.sql.
+  { id: "t-interview", name: "Job interview", description: "What they asked, what you answered, and what to prepare next time.", builtIn: true, sections: [
+    { heading: "Questions and my answers", instructions: "One bullet per question the interviewer (Them) asked, in order: the question in their words, then what I (Me) answered, briefly." },
+    { heading: "Questions I asked", instructions: "What I asked them and what they answered." },
+    { heading: "About the role and company", instructions: "Facts they shared: team, tasks, tools, salary, location, hiring process, people named." },
+    { heading: "Next steps", instructions: "What happens next, who contacts whom, and dates." },
+    { heading: "Prepare better next time", instructions: "Questions where my answer was vague, short or missing, and what I should prepare. Only from the transcript." },
+  ] },
 ];
 
 const P: Record<string, Person> = {
