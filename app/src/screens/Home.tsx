@@ -1,5 +1,5 @@
 // S05 home: upcoming meetings for the next 14 days, all notes, new note, ask across all notes.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { NotebookPen, Plus } from "lucide-react";
 import { Button, EmptyState, PageHeader, SkeletonRows } from "../ui/base";
 import { ChatBar, MeetingRow } from "../ui/notes";
@@ -19,7 +19,8 @@ export function Home() {
   const [error, setError] = useState<string>();
 
   const open = (p: Promise<{ id: string }>) => p.then((n) => go(`/note/${n.id}`), (e: Error) => setError(e.message));
-  const newNote = () => open(noteCreate());
+  const creating = useRef(false); // a double click would otherwise create two notes
+  const newNote = () => { if (creating.current) return; creating.current = true; open(noteCreate()).finally(() => { creating.current = false; }); };
   const now = Date.now();
 
   return (

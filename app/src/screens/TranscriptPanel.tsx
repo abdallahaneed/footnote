@@ -26,6 +26,7 @@ export function TranscriptPanel({ note, segments, focusId, onClose, onError }: {
   const [msg, setMsg] = useState("");
   const end = useRef<HTMLDivElement>(null);
   const recording = note.status === "recording";
+  const busy = note.status === "saved" || note.status === "transcribing" || note.status === "writing";
   const live = segments.filter((s) => !s.deleted);
   const shown = live.filter((s) => !q || s.text.toLowerCase().includes(q.toLowerCase()));
   const run = (p: Promise<unknown>) => p.catch((e: Error) => onError(e.message));
@@ -43,8 +44,8 @@ export function TranscriptPanel({ note, segments, focusId, onClose, onError }: {
       <div className="flex flex-wrap items-center gap-2">
         {recording
           ? <Button onClick={() => run(recordingStop(note.id))} icon={<Square className="size-3.5" aria-hidden />}>Stop</Button>
-          : <Button onClick={() => run(recordingStart(note.id))} icon={<Mic className="size-4" aria-hidden />}>{live.length ? "Resume" : "Start recording"}</Button>}
-        {!recording && live.length > 0 && (
+          : <Button disabled={busy} onClick={() => run(recordingStart(note.id))} icon={<Mic className="size-4" aria-hidden />}>{live.length ? "Resume" : "Start recording"}</Button>}
+        {!recording && !busy && live.length > 0 && (
           <Button variant="ghost" onClick={() => run(transcriptRetry(note.id))} icon={<RotateCcw className="size-3.5" aria-hidden />}>Transcribe again</Button>
         )}
       </div>

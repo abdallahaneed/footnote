@@ -274,11 +274,9 @@ export const notesRemoveFromFolder = (ids: string[], folderId: string) => call("
 /* Trash -------------------------------------------------------------------- */
 
 export const noteTrash = (ids: string[]) => call("note_trash", () => {
-  for (const n of db.notes) {
-    if (!ids.includes(n.id)) continue;
-    if (n.status === "recording") throw new Error("Stop recording before moving this note to the trash.");
-    n.deletedAt = Date.now();
-  }
+  const picked = db.notes.filter((n) => ids.includes(n.id));
+  if (picked.some((n) => n.status === "recording")) throw new Error("Stop recording before moving this note to the trash.");
+  for (const n of picked) n.deletedAt = Date.now();
   commit();
 });
 

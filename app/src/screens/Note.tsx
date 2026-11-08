@@ -130,14 +130,17 @@ export function NoteScreen({ id }: { id: string }) {
 
 function TitleInput({ note }: { note: Note }) {
   const [v, setV] = useState(note.title);
+  const latest = useRef({ v, saved: note.title });
+  latest.current.v = v;
+  useEffect(() => () => { const l = latest.current; if (l.v !== l.saved) noteUpdateOwn(note.id, { title: l.v }); }, []);
   useEffect(() => {
     if (v === note.title) return;
-    const t = setTimeout(() => noteUpdateOwn(note.id, { title: v }), 400);
+    const t = setTimeout(() => { latest.current.saved = v; noteUpdateOwn(note.id, { title: v }); }, 400);
     return () => clearTimeout(t);
   }, [v]);
   return (
     <input aria-label="Note title" placeholder="Untitled note" value={v} maxLength={200} onChange={(e) => setV(e.target.value)}
-      onBlur={() => v !== note.title && noteUpdateOwn(note.id, { title: v })}
+      onBlur={() => { if (v !== latest.current.saved) { latest.current.saved = v; noteUpdateOwn(note.id, { title: v }); } }}
       className="w-full rounded-md bg-transparent text-xl font-bold text-fg placeholder:text-muted" />
   );
 }
