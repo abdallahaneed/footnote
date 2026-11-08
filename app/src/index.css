@@ -22,3 +22,19 @@
 }
 
 @keyframes rec-bar { 0%, 100% { transform: scaleY(.35) } 50% { transform: scaleY(1) } }
+
+/* Own-notes editor (TipTap). Preflight strips list and heading styles, so they come back here from tokens. */
+.own-notes { outline: none; }
+.own-notes > * + * { margin-top: calc(var(--spacing) * 2); }
+.own-notes h1 { font-size: var(--text-xl); line-height: var(--text-xl--line-height); font-weight: var(--text-xl--font-weight); }
+.own-notes h2, .own-notes h3 { font-size: var(--text-lg); line-height: var(--text-lg--line-height); font-weight: var(--text-lg--font-weight); }
+.own-notes ul { list-style: disc; padding-left: calc(var(--spacing) * 6); }
+.own-notes ol { list-style: decimal; padding-left: calc(var(--spacing) * 6); }
+.own-notes li > p { margin: 0; }
+.own-notes blockquote { border-left: 2px solid var(--c-border); padding-left: calc(var(--spacing) * 3); color: var(--c-text-muted); }
+.own-notes code { font-family: var(--font-mono); background: var(--c-surface-2); border-radius: var(--radius-sm); padding: 0 calc(var(--spacing) * 1); }
+.own-notes pre { font-family: var(--font-mono); background: var(--c-surface-2); border-radius: var(--radius-md); padding: calc(var(--spacing) * 3); }
+.own-notes pre code { background: none; padding: 0; }
+.own-notes a { color: var(--c-accent); text-decoration: underline; }
+.own-notes hr { border-color: var(--c-border); }
+.own-notes p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; height: 0; pointer-events: none; color: var(--c-text-muted); }

@@ -29,7 +29,7 @@ Copy or delete a transcript chunk,transcript,should,yes,yes,S08; changelog Jan 2
 Search inside transcript,transcript,should,yes,yes,S08; build: S08 with highlight
 Personal jargon list for transcription,transcript,should,yes,yes,"S28 word list up to 30, passed to whisper as prompt"
 Multi-language transcription,transcript,should,yes,no,Granola claims 32 languages
-Rich text editor for own notes,notes,must,yes,partial,S07; build: plain textarea; TipTap not added yet
+Rich text editor for own notes,notes,must,yes,yes,"S07; TipTap with headings, lists, bold/italic, code, quotes, links (no click-through); saved as Markdown in own_text so export, search, chat and the LLM prompt read it unchanged; notes saved before as plain lines open line by line"
 Generate enhanced notes from own notes + transcript,enhance,must,yes,partial,"S09 core of the product; build: keyword stand-in in src/data/generate.ts; LLM in replica-backend; backend: real Ollama call with map-reduce and checked [S#] sources; only tested against a stand-in server, Ollama not installed here"
 Own text visually distinct from AI text,enhance,must,yes,yes,S09; build: OwnLine rule + weight
 My notes / Enhanced tabs,enhance,must,yes,yes,S09; build: My notes / Generated

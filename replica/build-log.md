@@ -10,7 +10,7 @@ Screenshots: replica/clone-screens/, 1440x900 and 390x844, light and dark. No re
 | shell | 2026-11-07 | done | Tauri project (src-tauri) not created yet; belongs with replica-backend | Chromium's scrollIntoView now returns a promise, which broke an arrow-function effect |
 | S05 home | 2026-11-07 | done | shift-click range select; 12-hour times wrap in the meeting row's time column | nothing |
 | S06 sidebar | 2026-11-07 | partial | spaces, subfolders, folder icons, drag and drop | auto-close on note open had to reopen on leaving, or home lost its nav |
-| S07 note, live | 2026-11-07 | partial | rich text (TipTap), images, consent notice, real capture | slash menu needs capture-phase keys so the textarea does not take Enter |
+| S07 note, live | 2026-11-07 | partial | images, consent notice, real capture | slash menu needs capture-phase keys so the textarea does not take Enter |
 | S08 transcript | 2026-11-07 | partial | real mic list, named speakers, auto-stop on silence | nothing |
 | S09 note, generated | 2026-11-07 | partial | audio playback behind citations, summary length switch, regenerate right after a line delete, real LLM | nothing |
 | S10 chat | 2026-11-07 | partial | thread history, model picker, file attach, rewrite-into-note, selection scope; answers come from a keyword stand-in | nothing |
@@ -22,6 +22,7 @@ Screenshots: replica/clone-screens/, 1440x900 and 390x844, light and dark. No re
 | S28 settings | 2026-11-08 | partial | saves on its own since replica-test round 2 (an explicit Save lost changes when you left); theme switch, live meeting indicator toggle, languages, markdown mirror folder picker (no folder dialog plugin yet) | Radix radio checks on arrow focus only while the key is down; fast synthetic taps can miss it, so the test presses Space |
 | export all | 2026-11-08 | partial | CSV; Rust notes_export compiled but not yet run in the desktop app | nothing |
 | S20 meeting notification | 2026-11-08 | partial | not seen fire from a real calendar yet; per-app toggles (S29); call detection from mic use; auto-stop when the call ends | needed its own window: a Rust thread opens a small undecorated always-on-top webview per meeting, and "Start notes" runs in the core so it can focus the main window and tell it where to go |
+| S07 rich text editor | 2026-11-08 | done | images and file uploads (separate should/could rows); custom marks for own vs generated lines stay in S09 | Playwright's End key does nothing on macOS, so scripted cursor moves need a click on the exact spot; the slash menu needed ProseMirror's handleKeyDown to stop Enter splitting the line |
 | layout | 2026-11-08 | done | — | main was not a scroll container, so long pages scrolled the whole window and the sidebar went with it |
 | S01, S02 picker, S04, S11, S12, S14-S18, S21, S24-S27, S29-S38 | 2026-11-07 | stub | routed with a "Not built yet" page naming the milestone | — |
 

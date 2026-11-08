@@ -42,7 +42,7 @@ test("F03-E2 emoji, accents and a 250-char title are kept, clipped at 200", asyn
   await page.waitForTimeout(600);
   await page.reload();
   await expect(page.getByLabel("Note title")).toHaveValue(t.slice(0, 200));
-  await expect(page.getByRole("textbox", { name: "My notes" })).toHaveValue("Grüße 👋");
+  await expect(page.getByRole("textbox", { name: "My notes" })).toHaveText("Grüße 👋");
 });
 
 test("F03-E3 title typed then back button right away is saved", async ({ page }) => {
@@ -61,7 +61,7 @@ test("F03-E4 own notes typed then back button right away are saved", async ({ pa
   await page.goBack();
   await open(page, "/note/n-hiring");
   await page.getByRole("tab", { name: "My notes" }).click();
-  await expect(page.getByRole("textbox", { name: "My notes" })).toHaveValue("typed just before leaving");
+  await expect(page.getByRole("textbox", { name: "My notes" })).toHaveText("typed just before leaving");
 });
 
 test("F02-E1 back button mid-recording keeps recording, home shows it", async ({ page }) => {
@@ -375,4 +375,34 @@ test("S20-E5 the card fills the pop-up window, so no square frame shows around r
   const box = (await card.boundingBox())!;
   expect([box.x, box.y, Math.round(box.width)]).toEqual([0, 0, 360]);
   expect(await card.evaluate((el) => getComputedStyle(el).borderTopLeftRadius)).toBe("0px");
+});
+
+test("S07 own notes: Markdown shortcuts make a list and bold text that survive a reload", async ({ page }) => {
+  await open(page, "/");
+  await newNote(page);
+  const editor = page.getByRole("textbox", { name: "My notes" });
+  await editor.click();
+  await page.keyboard.type("## Agenda");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("- budget ");
+  await page.keyboard.press("ControlOrMeta+b");
+  await page.keyboard.type("final");
+  await page.keyboard.press("ControlOrMeta+b");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("hiring");
+  await page.waitForTimeout(600);
+  await page.reload();
+  await expect(editor.getByRole("heading", { name: "Agenda" })).toBeVisible();
+  await expect(editor.getByRole("listitem")).toHaveText(["budget final", "hiring"]);
+  await expect(editor.locator("strong")).toHaveText("final");
+});
+
+test("S07 own notes saved as plain lines open as separate lines", async ({ page }) => {
+  await open(page, "/note/n-hiring");
+  await page.getByRole("tab", { name: "My notes" }).click();
+  const editor = page.getByRole("textbox", { name: "My notes" });
+  await expect(editor).toContainText("backend role: 3 left");
+  const box = await editor.boundingBox();
+  expect(box!.height).toBeGreaterThan(40); // two lines, not merged into one
+  await expect(editor.locator("br, p")).not.toHaveCount(1);
 });

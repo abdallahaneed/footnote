@@ -78,7 +78,7 @@ test("slash menu picks a template with the keyboard", async ({ page }) => {
   await page.keyboard.type("one");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("listbox")).toHaveCount(0);
-  await expect(editor).toHaveValue("");
+  await expect(editor).toHaveText("");
   await expect(page.getByRole("combobox", { name: "Template" })).toHaveText(/One-on-one/);
 });
 

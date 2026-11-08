@@ -1,5 +1,9 @@
 // S07 note while recording, S09 note after the meeting. One screen: the generated view appears once notes exist.
 import { useEffect, useRef, useState } from "react";
+import { EditorContent, useEditor, type Editor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import { Placeholder } from "@tiptap/extensions";
+import { Markdown } from "@tiptap/markdown";
 import { AudioLines, Mic, MoreHorizontal, Square } from "lucide-react";
 import { Banner, Button, EmptyState, IconButton, Menu, SelectMenu, SkeletonRows } from "../ui/base";
 import { ChatBar, GeneratedLine, OwnLine, SlashMenu, StatusChip, Tabs, type Option } from "../ui/notes";
@@ -145,12 +149,13 @@ function TitleInput({ note }: { note: Note }) {
   );
 }
 
-// Own notes editor. Saves 400 ms after typing stops and on leaving, so nothing typed is lost.
-// shortcut: plain textarea with a "/" template menu; TipTap rich text comes later (architecture.md).
+// Own notes editor (TipTap). Stored as Markdown in ownText, so the Rust side, export, search and the LLM prompt read it unchanged.
+// Saves 400 ms after typing stops and on leaving, so nothing typed is lost.
 function OwnNotes({ note, templates, onTemplate }: { note: Note; templates: Template[]; onTemplate: (id: string) => void }) {
   const [text, setText] = useState(note.ownText);
   const [slash, setSlash] = useState<string | null>(null);
-  const ref = useRef<HTMLTextAreaElement>(null);
+  const slashOpen = useRef(false);
+  slashOpen.current = slash !== null;
   const latest = useRef({ text, saved: note.ownText });
   latest.current.text = text;
 
@@ -161,25 +166,45 @@ function OwnNotes({ note, templates, onTemplate }: { note: Note; templates: Temp
   useEffect(() => { const t = setTimeout(save, 400); return () => clearTimeout(t); }, [text]);
   useEffect(() => save, []);
 
-  const onChange = (v: string, caret: number) => {
-    setText(v);
-    const m = v.slice(0, caret).split("\n").pop()!.match(/^\/(\w*)$/);
-    setSlash(m ? m[1] : null);
+  // "/word" alone at the start of a block opens the template menu
+  const slashQuery = (ed: Editor) => {
+    const { $from, empty } = ed.state.selection;
+    const m = empty ? $from.parent.textBetween(0, $from.parentOffset).match(/^\/(\w*)$/) : null;
+    return m ? m[1] : null;
   };
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({ link: { openOnClick: false } }), // a click must not navigate the app window
+      Placeholder.configure({ placeholder: "Write down what matters to you. Type / to pick a template." }),
+      Markdown.configure({ markedOptions: { breaks: true } }), // notes saved before the editor used single line breaks
+    ],
+    content: note.ownText,
+    contentType: "markdown",
+    editorProps: {
+      attributes: { role: "textbox", "aria-multiline": "true", "aria-label": "My notes", class: "own-notes min-h-64 text-note text-fg" },
+      // the slash menu takes these keys in the capture phase; stop ProseMirror acting on them too
+      handleKeyDown: (_, e) => {
+        if (e.key === "Escape") { setSlash(null); return slashOpen.current; }
+        return slashOpen.current && ["Enter", "ArrowUp", "ArrowDown"].includes(e.key);
+      },
+    },
+    onUpdate: ({ editor: ed }) => { setText(ed.getMarkdown()); setSlash(slashQuery(ed)); },
+    onSelectionUpdate: ({ editor: ed }) => setSlash(slashQuery(ed)),
+    onBlur: save,
+  });
+
   const pick = (o: Option) => {
-    const caret = ref.current?.selectionStart ?? text.length;
-    setText(text.slice(0, caret).replace(/\/\w*$/, "") + text.slice(caret));
+    if (editor) {
+      const { $from } = editor.state.selection;
+      editor.chain().focus().deleteRange({ from: $from.start(), to: $from.pos }).run();
+    }
     setSlash(null);
     onTemplate(o.id);
-    ref.current?.focus();
   };
 
   return (
     <div className="relative">
-      <textarea ref={ref} aria-label="My notes" value={text} placeholder="Write down what matters to you. Type / to pick a template."
-        onChange={(e) => onChange(e.target.value, e.target.selectionStart)} onBlur={save}
-        onKeyDown={(e) => { if (e.key === "Escape") setSlash(null); }}
-        className="min-h-64 w-full resize-none rounded-md bg-transparent text-note text-fg placeholder:text-muted" />
+      <EditorContent editor={editor} />
       {slash !== null && (
         <div className="absolute left-0 top-8 z-20">
           <SlashMenu query={slash} items={templates.map((t) => ({ id: t.id, label: t.name, hint: "Template" }))} onPick={pick} />

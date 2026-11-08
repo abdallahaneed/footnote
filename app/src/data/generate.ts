@@ -11,7 +11,7 @@ export function generate(t: Template, ownText: string, segs: Segment[]): GenLine
   const last = buckets.length - 1;
   const mid = Math.min(1, last);
   for (const line of ownText.split("\n")) {
-    const l = line.replace(/^[-*•]\s*/, "").trim();
+    const l = line.replace(/^\s*(#+|[-*•+]|\d+[.)]|>)\s*/, "").replace(/\*\*|__|`/g, "").replace(/\\$/, "").trim(); // own notes are Markdown
     if (l) buckets[0].push({ kind: "own", text: l });
   }
   for (const s of segs) {
