@@ -90,7 +90,7 @@ Expected: "Keep for 30 days" is still picked.
 Actual: back to the old value. Nothing said the change was not saved.
 Evidence: test "S28-E1 unsaved settings are not lost silently when leaving"
 Fix: Settings save on their own 600 ms after a change and when the page closes, like notes. The Save and Discard buttons are gone.
-Status: fixed in COMMIT
+Status: fixed in 5c09b9d
 
 ### BUG-006: "Transcript only" cannot be saved while the hidden model address is invalid
 
@@ -106,7 +106,7 @@ Expected: saved.
 Actual: error "The model address must start with http:// or https://." about a field you can no longer see.
 Evidence: test "S28-E2 Transcript only saves even if the hidden model address was invalid"
 Fix: with Transcript only, the last saved address and model are sent instead of the hidden half-typed ones.
-Status: fixed in COMMIT
+Status: fixed in 5c09b9d
 
 ### BUG-007: a model name that is too long gets the message "Enter a model name."
 
@@ -120,7 +120,7 @@ Steps
 Expected: a message about the length.
 Actual: "Enter a model name." (same in the Rust core).
 Evidence: test "S28-E3 a 201-character model name gets a message about length"
-Status: fixed in COMMIT (fake and Rust)
+Status: fixed in 5c09b9d (fake and Rust)
 
 ### BUG-008: export overwrites a note whose title looks the same to macOS
 
@@ -137,4 +137,4 @@ Actual: one file; the second note overwrote the first. Same for two exports star
 Evidence: cargo test notes::tests::export_writes_one_file_per_live_note_and_never_overwrites (left 6, right 7)
 Suspected cause: duplicate names were checked against a lowercase set, but APFS also treats the two ways of writing accents as one name.
 Fix: ask the file system whether the name exists before writing; a second export in the same minute gets its own folder.
-Status: fixed in COMMIT
+Status: fixed in 5c09b9d
