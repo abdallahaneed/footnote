@@ -525,6 +525,7 @@ fn md_plain(md: &str) -> String {
 
 /// Each word as a quoted prefix term, all required: `"rel"* "dat"*`. Quotes inside a word are doubled, so no FTS syntax leaks in.
 fn fts_query(q: &str) -> Option<String> {
+    let q: String = q.chars().map(|c| if c.is_control() { ' ' } else { c }).collect(); // FTS5 reads NUL as the end of the string
     let terms: Vec<String> = q.split_whitespace().map(|w| format!("\"{}\"*", w.replace('"', "\"\""))).collect();
     (!terms.is_empty()).then(|| terms.join(" "))
 }
@@ -581,6 +582,21 @@ mod tests {
     use crate::db::mem;
 
     fn none(_: &str) -> LiveInfo { None }
+
+    #[test]
+    fn search_odd_queries_never_error() {
+        let c = mem();
+        let a = create(&c, None).unwrap();
+        update_own(&c, &a, Some("Follow-up with Jo\u{eb}l"), Some("we'll send it \u{1F44B} today, 3*4 = 12"), None).unwrap();
+        for q in ["\u{1F44B}", "?", "-", "...", "\"", "*", "(", "NOT", "AND OR", "a\u{0}b", "\u{4f1a}\u{8bae}", &"long ".repeat(200)] {
+            assert!(search_notes(&c, q).is_ok(), "query {q:?} errored: {:?}", search_notes(&c, q).err());
+        }
+        let ids = |q: &str| search_notes(&c, q).unwrap().into_iter().map(|h| h.id).collect::<Vec<_>>();
+        assert_eq!(ids("follow-up"), vec![a.clone()]);
+        assert_eq!(ids("we'll"), vec![a.clone()]);
+        assert_eq!(ids("joel"), vec![a.clone()]);
+        assert_eq!(ids("NOT"), Vec::<String>::new(), "operators are words, and this one is not in the note");
+    }
 
     #[test]
     fn search_finds_every_field_follows_edits_and_skips_trash() {

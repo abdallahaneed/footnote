@@ -1,5 +1,5 @@
 // S06 sidebar: home, folders, templates, trash (hidden when empty), settings.
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { FileText, Home, LayoutTemplate, Plus, Search, Settings, Trash2 } from "lucide-react";
 import { Button, IconButton, KeyCaps, Modal, TextInput } from "../ui/base";
 import { SidebarItem } from "../ui/notes";
@@ -60,15 +60,18 @@ export function FolderDialog({ folder, onClose }: { folder: Partial<Folder>; onC
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   useEffect(() => setError(undefined), [name]);
+  const formId = useId();
   const save = async () => {
+    if (busy) return;
     setBusy(true);
     try { const f = await folderSave({ id: folder.id, name, description, icon }); onClose(f.id); }
     catch (e) { setError((e as Error).message); setBusy(false); }
   };
   return (
     <Modal open onOpenChange={(o) => !o && onClose()} title={folder.id ? "Edit folder" : "New folder"}
-      footer={<><Button onClick={() => onClose()}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>Save</Button></>}>
-      <form className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); save(); }}>
+      footer={<><Button onClick={() => onClose()}>Cancel</Button><Button type="submit" form={formId} variant="primary" loading={busy}>Save</Button></>}>
+      {/* Save sits in the footer, outside the form; form= links it so Enter in either field submits */}
+      <form id={formId} className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); save(); }}>
         <TextInput label="Name" value={name} max={40} error={error} autoFocus onChange={(e) => setName(e.target.value)} />
         <TextInput label="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
         <FolderIconPicker value={icon} onChange={setIcon} />

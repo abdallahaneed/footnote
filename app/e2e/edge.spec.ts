@@ -625,3 +625,138 @@ test("S23-E1 folder icon: pick by keyboard, kept after edit, no axe issues in th
   await page.getByRole("menuitem", { name: "Edit folder" }).click();
   await expect(page.getByRole("dialog", { name: "Edit folder" }).getByRole("radio", { name: "Team" })).toBeChecked();
 });
+
+// Round 5: full-text search (F13) and folder icons (F09 folders).
+const palette = async (page: Page) => {
+  await page.keyboard.press("ControlOrMeta+k");
+  return page.getByRole("combobox", { name: "Search notes and commands" });
+};
+
+test("F13-E3 search follows edits: new words found, removed words gone, restored notes back", async ({ page }) => {
+  await open(page, "/note/n-roadmap");
+  await page.getByRole("tab", { name: "My notes" }).click();
+  await page.getByRole("textbox", { name: "My notes" }).click();
+  await page.keyboard.type("zebracorn plan");
+  await page.waitForTimeout(600);
+  let box = await palette(page);
+  await box.fill("zebracorn");
+  await expect(page.getByRole("option", { name: /Roadmap check-in/ })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "Move to trash" }).click();
+  await expect(page).toHaveURL(/#\/$/);
+  box = await palette(page);
+  await box.fill("zebracorn");
+  await expect(page.getByText(/Nothing matches/)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await open(page, "/trash");
+  await page.getByRole("button", { name: /Restore/ }).first().click();
+  box = await palette(page);
+  await box.fill("zebracorn");
+  await expect(page.getByRole("option", { name: /Roadmap check-in/ })).toBeVisible();
+});
+
+test("F13-E4 deleted transcript lines are not found", async ({ page }) => {
+  await open(page, "/note/n-hiring");
+  await page.getByRole("button", { name: "Show transcript" }).click();
+  const panel = page.getByRole("complementary", { name: "Transcript" });
+  const line = panel.getByText(/check references/);
+  await line.hover();
+  await panel.getByRole("button", { name: /Delete/ }).first().click();
+  await page.getByRole("button", { name: "Hide transcript" }).click();
+  const box = await palette(page);
+  await box.fill("references");
+  // generated notes still quote it until they are regenerated, so it may match there, never in the transcript
+  await expect(page.getByRole("option", { name: /Hiring sync/ })).not.toContainText("In transcript");
+});
+
+test("F13-E5 keyboard only: arrow to a text match, Enter opens the note", async ({ page }) => {
+  await open(page, "/");
+  const box = await palette(page);
+  await box.fill("references");
+  await expect(page.getByRole("option", { name: /Hiring sync/ })).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/#\/note\/n-hiring/);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+test("F13-E6 390px: long snippets stay on one line, no sideways scroll, no axe issues", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page, "/");
+  await page.getByRole("button", { name: "Show sidebar" }).click();
+  await page.getByRole("button", { name: /Search/ }).first().click();
+  const box = page.getByRole("combobox", { name: "Search notes and commands" });
+  await box.fill("the");
+  await expect(page.getByRole("option").first()).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const box2 = await page.getByRole("listbox", { name: "Results" }).boundingBox();
+  expect(box2!.x + box2!.width).toBeLessThanOrEqual(390);
+  const axe = await new AxeBuilder({ page }).include("[role=dialog]").analyze();
+  expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
+  await page.screenshot({ path: "../replica/clone-screens/S19-390.png" });
+});
+
+test("F13-E7 emoji, punctuation and a very long query show no results instead of failing", async ({ page }) => {
+  await open(page, "/");
+  const box = await palette(page);
+  for (const q of ["👋", "?!", "-", "x".repeat(600)]) {
+    await box.fill(q);
+    await expect(page.getByText(/Nothing matches/)).toBeVisible();
+  }
+});
+
+test("F13-E8 typing fast shows the results for the last query, not an earlier one", async ({ page }) => {
+  await open(page, "/");
+  const box = await palette(page);
+  await box.pressSequentially("references", { delay: 15 });
+  await box.press("Backspace");
+  await box.pressSequentially("s", { delay: 0 });
+  await box.fill("roadmap");
+  await expect(page.getByRole("option", { name: /Roadmap check-in/ })).toBeVisible();
+  await page.waitForTimeout(400);
+  await expect(page.getByRole("option", { name: /Hiring sync/ })).toHaveCount(0);
+});
+
+test("F09-E1 folder dialog: double click on Save makes one folder", async ({ page }) => {
+  await open(page, "/");
+  await expect(page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: /^Hiring/ })).toBeVisible();
+  const before = await page.getByRole("navigation", { name: "Main" }).getByRole("button").count();
+  await page.getByRole("button", { name: "New folder" }).click();
+  await page.getByRole("dialog").getByLabel("Name").fill("Once");
+  await page.getByRole("dialog").getByRole("button", { name: "Save" }).dblclick();
+  await expect(page).toHaveURL(/#\/folder\//);
+  await expect(page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: /^Once/ })).toHaveCount(1);
+  expect(await page.getByRole("navigation", { name: "Main" }).getByRole("button").count()).toBe(before + 1);
+});
+
+test("F09-E2 folder dialog: Cancel keeps the old icon; Enter in the name saves the chosen icon", async ({ page }) => {
+  await open(page, "/folder/f-hiring");
+  await page.getByRole("button", { name: "Folder actions" }).click();
+  await page.getByRole("menuitem", { name: "Edit folder" }).click();
+  let d = page.getByRole("dialog", { name: "Edit folder" });
+  await expect(d.getByRole("radio", { name: "Team" })).toBeChecked();
+  await d.getByRole("radio", { name: "Ideas" }).check({ force: true });
+  await d.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Folder actions" }).click();
+  await page.getByRole("menuitem", { name: "Edit folder" }).click();
+  d = page.getByRole("dialog", { name: "Edit folder" });
+  await expect(d.getByRole("radio", { name: "Team" })).toBeChecked();
+  await d.getByRole("radio", { name: "Ideas" }).check({ force: true });
+  await d.getByLabel("Name").press("Enter");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "Folder actions" }).click();
+  await page.getByRole("menuitem", { name: "Edit folder" }).click();
+  await expect(page.getByRole("dialog", { name: "Edit folder" }).getByRole("radio", { name: "Ideas" })).toBeChecked();
+});
+
+test("F09-E3 folder name over 40 characters says why and keeps the dialog open", async ({ page }) => {
+  await open(page, "/");
+  await page.getByRole("button", { name: "New folder" }).click();
+  const d = page.getByRole("dialog");
+  await d.getByLabel("Name").fill("x".repeat(60));
+  await d.getByRole("button", { name: "Save" }).click();
+  await expect(d).toBeVisible();
+  await expect(d.getByText(/40 characters/)).toBeVisible();
+});
