@@ -7,6 +7,8 @@ import { FolderScreen } from "../screens/Folder";
 import { Trash } from "../screens/Trash";
 import { Templates } from "../screens/Templates";
 import { Calendars } from "../screens/Calendars";
+import { Permissions } from "../screens/Permissions";
+import { Settings } from "../screens/Settings";
 import { NotFound, STUBS, Stub } from "../screens/Stub";
 import { Sidebar } from "./Sidebar";
 import { Palette } from "./Palette";
@@ -22,6 +24,8 @@ function Screen({ path }: { path: string }) {
   if (path === "/trash") return <Trash />;
   if (path === "/templates") return <Templates />;
   if (path === "/welcome/calendar") return <Calendars />;
+  if (path === "/welcome/audio") return <Permissions />;
+  if (path === "/settings/preferences" || path === "/settings") return <Settings />;
   const stub = STUBS.find((s) => match(s.path, path));
   return stub ? <Stub s={stub} /> : <NotFound />;
 }
@@ -55,7 +59,7 @@ export function App() {
             <PanelLeft className="size-4" aria-hidden />
           </IconButton>
         </header>
-        <main className="min-h-0 flex-1"><Screen path={path} /></main>
+        <main className="min-h-0 flex-1 overflow-y-auto"><Screen path={path} /></main>
       </div>
       <Palette open={palette} onOpenChange={setPalette} />
     </div>

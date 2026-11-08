@@ -2,7 +2,7 @@
 // (npm run dev, Playwright) it uses the in-memory fake with the same functions.
 import * as fake from "./fake";
 import * as real from "./real";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 
 export const isDesktop = "__TAURI_INTERNALS__" in window;
 
@@ -14,7 +14,16 @@ export const {
   transcriptDeleteSegment, transcriptCopyAll, transcriptRetry, templatesList, templateSave, templateDelete, foldersTree, folderSave,
   folderDelete, notesAddToFolder, notesRemoveFromFolder, noteTrash, noteRestore, noteDeleteForever, noteCopyMarkdown, noteEmailDraft,
   searchIndex, chatSend, calendarSourcesList, calendarAddSource, calendarSourceDelete,
+  settingsGet, settingsUpdate, permissionsGet, permissionRequest, notesExport,
 } = api;
 
 // mailto: and meeting links: the system handler in the app, the browser otherwise.
 export const openExternal = (url: string) => (isDesktop ? openUrl(url) : Promise.resolve(void (location.href = url)));
+
+export const revealInFinder = (path: string) => (isDesktop ? revealItemInDir(path) : Promise.resolve());
+
+// System Settings panes for the permission screen (S03).
+export const PRIVACY_PANE = {
+  mic: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+  system_audio: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+};

@@ -82,6 +82,50 @@ pub fn mic_permission() -> &'static str {
     "granted"
 }
 
+#[cfg(target_os = "macos")]
+#[link(name = "CoreGraphics", kind = "framework")]
+unsafe extern "C" {
+    fn CGPreflightScreenCaptureAccess() -> bool;
+    fn CGRequestScreenCaptureAccess() -> bool;
+}
+
+/// Screen & System Audio Recording, which ScreenCaptureKit needs for the "Them" side.
+/// macOS only reports granted or not, so "not granted" covers both never-asked and denied.
+#[cfg(target_os = "macos")]
+pub fn system_audio_permission() -> &'static str {
+    if unsafe { CGPreflightScreenCaptureAccess() } { "granted" } else { "denied" }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn system_audio_permission() -> &'static str {
+    "granted"
+}
+
+/// Shows the OS prompt. The mic prompt appears the first time an input stream opens, so open one briefly.
+pub fn request_permission(kind: &str) -> anyhow::Result<()> {
+    match kind {
+        "mic" => {
+            let device = cpal::default_host().default_input_device().ok_or_else(|| anyhow::anyhow!("No microphone found."))?;
+            let config = device.default_input_config()?;
+            let stream = match config.sample_format() {
+                cpal::SampleFormat::I16 => device.build_input_stream(config.into(), |_: &[i16], _: &_| {}, |_| {}, None)?,
+                _ => device.build_input_stream(config.into(), |_: &[f32], _: &_| {}, |_| {}, None)?,
+            };
+            stream.play()?;
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            Ok(())
+        }
+        #[cfg(target_os = "macos")]
+        "system_audio" => {
+            unsafe { CGRequestScreenCaptureAccess() };
+            Ok(())
+        }
+        #[cfg(not(target_os = "macos"))]
+        "system_audio" => Ok(()),
+        _ => anyhow::bail!("Unknown permission."),
+    }
+}
+
 fn push_mono(data: impl Iterator<Item = f32>, channels: usize, buf: &Mutex<Vec<f32>>) {
     let data: Vec<f32> = data.collect();
     let mono = data.chunks(channels.max(1)).map(|f| f.iter().sum::<f32>() / f.len() as f32);

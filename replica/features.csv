@@ -6,7 +6,7 @@ Sign in with Google for calendar,onboarding,should,yes,no,S01; users may need th
 Sign in with Microsoft for calendar,onboarding,should,yes,no,S01; Exchange Online only
 Read OS calendar (EventKit on macOS) or ICS URL,calendar,must,no,partial,clone choice that avoids OAuth verification; backend: ICS link with DST-correct recurring events (S02 screen); EventKit not built
 Choose which calendars to sync,calendar,must,yes,partial,S02 Select all; backend: add and remove ICS links; no per-calendar picker
-Request mic and system audio permissions with recovery help,onboarding,must,yes,no,S03; denied state must link to System Settings
+Request mic and system audio permissions with recovery help,onboarding,must,yes,partial,"S03 built 2026-11-08: Allow per permission, denied state opens the right System Settings pane, re-checks on focus; Rust permissions_get/permission_request; not yet tried against real macOS prompts in a signed build"
 Demo or sample note on first run,onboarding,could,yes,no,S04; write our own content
 Home with Coming up and Your notes,home,must,yes,yes,S05; next 14 days; build: S05
 New ad-hoc note button,notes,must,yes,yes,S05 + New Note; build: S05 + palette command
@@ -19,7 +19,7 @@ Floating live meeting indicator,capture,should,yes,no,S21; toggle in S28
 Stop and resume transcription,capture,must,yes,partial,S08; build: UI and flow done on fake capture
 Auto-stop on call end / 15 min silence / sleep,capture,should,yes,no,F02 edge cases
 Mic selector with Auto,capture,should,yes,partial,"S08; build: selector UI only, not wired to devices"
-Audio stays on device; user sets keep or delete after transcript,privacy,must,yes,partial,changed by fixes.md #1: Granola deletes audio; clone keeps it locally so a failed transcript can be re-run; backend: retention 7d/30d/forever/after transcript built; no settings screen
+Audio stays on device; user sets keep or delete after transcript,privacy,must,yes,yes,"changed by fixes.md #1; default delete after transcript (0003); S28 radio for after transcript / 7d / 30d / forever, retention job built"
 Live streaming transcript,transcript,must,yes,partial,"S08; build: UI streams scripted lines; whisper in replica-backend; backend: real transcript arrives per 30 s segment, so it lags up to ~35 s"
 Local speech-to-text,transcript,must,no,yes,"clone choice: whisper.cpp or similar; Granola uses Deepgram/AssemblyAI; backend: whisper.cpp base model, downloaded once (60 MB); e2e test passes"
 Speaker labels Me / Them,transcript,must,yes,yes,S08; build: S08 bubbles
@@ -27,14 +27,14 @@ Named speakers for Meet / Zoom / Teams,transcript,could,yes,no,needs diarization
 Copy all transcript,transcript,must,yes,yes,S08; build: S08
 Copy or delete a transcript chunk,transcript,should,yes,yes,S08; changelog Jan 2026; build: S08
 Search inside transcript,transcript,should,yes,yes,S08; build: S08 with highlight
-Personal jargon list for transcription,transcript,should,yes,partial,S28 up to 30 terms; backend: passed to whisper as prompt; no settings screen
+Personal jargon list for transcription,transcript,should,yes,yes,"S28 word list up to 30, passed to whisper as prompt"
 Multi-language transcription,transcript,should,yes,no,Granola claims 32 languages
 Rich text editor for own notes,notes,must,yes,partial,S07; build: plain textarea; TipTap not added yet
 Generate enhanced notes from own notes + transcript,enhance,must,yes,partial,"S09 core of the product; build: keyword stand-in in src/data/generate.ts; LLM in replica-backend; backend: real Ollama call with map-reduce and checked [S#] sources; only tested against a stand-in server, Ollama not installed here"
 Own text visually distinct from AI text,enhance,must,yes,yes,S09; build: OwnLine rule + weight
 My notes / Enhanced tabs,enhance,must,yes,yes,S09; build: My notes / Generated
 Regenerate after resume or transcript edit,enhance,should,yes,partial,F04; build: regenerates after resume+stop and on template switch; not automatic after a line delete
-Local LLM via Ollama or llama.cpp,enhance,must,no,partial,clone choice: free and private; backend: Ollama and OpenAI-compatible URLs; no settings screen yet
+Local LLM via Ollama or llama.cpp,enhance,must,no,partial,clone choice: free and private; S28 picks Ollama / OpenAI-compatible URL / transcript only; Ollama never run on this machine
 Bring your own API key for a cloud model,enhance,could,no,no,optional fallback for weak machines
 Templates with sections,templates,must,yes,yes,S13; write our own built-in set; build: four built-ins written fresh
 Apply template with / during the call,templates,must,yes,yes,F05; build: slash menu in own notes
@@ -84,7 +84,7 @@ Companies view from email domains,people,could,yes,no,S17
 Person / company detail with notes,people,could,yes,no,S18
 Copy enhanced notes as markdown,share,must,yes,yes,S09 three-dots
 Send notes via email draft (mailto),share,should,yes,yes,S09
-Export all notes (markdown / CSV),share,must,yes,no,Granola exports CSV; clone exports markdown folder too
+Export all notes (markdown / CSV),share,must,yes,partial,"S28 Export all notes: one markdown file per note in ~/Documents/Meeting notes <date>, Show in Finder; Rust notes_export compiled, not yet run in the desktop app; no CSV"
 Share note by link with viewer/collaborator roles,share,could,yes,no,S14; needs sync server
 Request and grant access,share,could,yes,no,S15; needs sync server
 Web viewer for shared notes,share,could,yes,no,S36; needs server
@@ -114,7 +114,7 @@ Crash-safe local audio segments written during recording,capture,must,no,yes,fix
 Re-run transcription and notes from saved audio,transcript,must,no,yes,fixes.md #1; build: Transcribe again button on fake pipeline; backend: transcript_retry
 Visible pipeline status per note with Retry on failure,enhance,must,no,yes,"fixes.md #2; review-14632129571; build: status chip on rows and notes, banner with Try again"
 Every enhanced line links to transcript timestamp and plays audio,enhance,must,no,partial,fixes.md #4; hallucination complaints 5 reviews 3 sources; build: jumps to the transcript line; audio playback needs the Rust audio_play_range; backend: sources validated in Rust; audio playback not built
-Summary length switch short / normal / detailed,enhance,should,no,no,fixes.md #5; review-14026182836
+Summary length switch short / normal / detailed,enhance,should,no,yes,"S28 select; the enhance prompt uses it (desktop); fixes.md #5"
 Notes saved as markdown files in a user-chosen folder,notes,must,no,partial,"fixes.md #6; export paywall complaint; backend: mirror written after each note; folder set only via settings_update, no screen"
 Private-by-default notice and no automatic folder visibility,privacy,should,no,no,fixes.md #7; HN item 44736878
 Meeting duration shown on every note,notes,should,no,yes,fixes.md #8; review-13656690485; build: rows and note header

@@ -1,6 +1,6 @@
 # Build log
 
-App: app/ (React 19 + Vite, Tailwind tokens, Radix primitives). Run: cd app && npm run dev, http://localhost:1430. Tests: npm run test:e2e (22 passing).
+App: app/ (React 19 + Vite, Tailwind tokens, Radix primitives). Run: cd app && npm run dev, http://localhost:1430. Tests: npm run test:e2e (43 passing on 2026-11-08).
 Data layer: app/src/data/api.ts is a fake with the Tauri command names from architecture.md. replica-backend swaps each body for invoke(); no screen changes.
 Error knobs for screenshots: ?fail=<command> (e.g. ?fail=notes_list) or ?fail=enhance before the # in the URL.
 Screenshots: replica/clone-screens/, 1440x900 and 390x844, light and dark. No reference screenshots exist in replica/screens/, so replica-diff has nothing to diff against yet.
@@ -18,7 +18,11 @@ Screenshots: replica/clone-screens/, 1440x900 and 390x844, light and dark. No re
 | S19 command palette | 2026-11-07 | done | people and companies results (screens not built) | nothing |
 | S22 trash | 2026-11-07 | done | empty-trash-all button | nothing |
 | S23 folder | 2026-11-07 | partial | auto-add recurring meetings, integrations button, share settings | nothing |
-| S01-S04, S11, S12, S14-S18, S20, S21, S24-S38 | 2026-11-07 | stub | routed with a "Not built yet" page naming the milestone | — |
+| S03 permissions | 2026-11-08 | partial | real macOS prompts not tried yet (needs a signed build; the dev binary asks on behalf of the terminal) | macOS only reports screen recording as granted or not, so "never asked" and "denied" look the same; the screen asks once, then sends you to System Settings |
+| S28 settings | 2026-11-08 | partial | theme switch, live meeting indicator toggle, languages, markdown mirror folder picker (no folder dialog plugin yet) | Radix radio checks on arrow focus only while the key is down; fast synthetic taps can miss it, so the test presses Space |
+| export all | 2026-11-08 | partial | CSV; Rust notes_export compiled but not yet run in the desktop app | nothing |
+| layout | 2026-11-08 | done | — | main was not a scroll container, so long pages scrolled the whole window and the sidebar went with it |
+| S01, S02 picker, S04, S11, S12, S14-S18, S20, S21, S24-S27, S29-S38 | 2026-11-07 | stub | routed with a "Not built yet" page naming the milestone | — |
 
 Bigger than it looks:
 1. Everything in the core loop past the UI is fake: capture, whisper, the LLM, audio playback. The slice proves the screens and the flow, not the hard part. architecture.md says to build the capture spike first; that is the next real risk.

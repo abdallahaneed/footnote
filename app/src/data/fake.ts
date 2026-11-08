@@ -3,7 +3,7 @@
 import { commit, db } from "./store";
 import { COMMIT, generate, toMarkdown } from "./generate";
 import { clock } from "./format";
-import type { CalendarEvent, Folder, Note, Segment, Template } from "./types";
+import type { CalendarEvent, Folder, Note, Permissions, Segment, Settings, Template } from "./types";
 
 const DAY = 86_400_000;
 const SEG_MS = 1500; // a real segment is 30 s; shortened so the fake transcript moves
@@ -368,3 +368,36 @@ export async function chatSend(q: { scopeIds: string[] | "all"; text: string }, 
   }
   return { citations: a.citations };
 }
+
+/* Settings (S28), same checks as settings_update ------------------------------ */
+
+let settings: Settings = {
+  llmProvider: "ollama", llmUrl: "http://localhost:11434", llmModel: "llama3.2:3b", summaryLength: "normal",
+  audioRetention: "delete_after_transcript", jargon: [], languages: ["en"],
+};
+export const settingsGet = () => call("settings_get", () => settings);
+export const settingsUpdate = (s: Settings) => call("settings_update", () => {
+  if (!/^https?:\/\//.test(s.llmUrl) || s.llmUrl.length > 500) throw new Error("The model address must start with http:// or https://.");
+  if (!s.llmModel.trim() || s.llmModel.length > 200) throw new Error("Enter a model name.");
+  if (s.jargon.length > 30 || s.jargon.some((j) => j.length > 60)) throw new Error("Up to 30 words, each under 60 characters.");
+  settings = { ...s, llmUrl: s.llmUrl.trim(), llmModel: s.llmModel.trim() };
+  commit();
+});
+
+/* Permissions (S03). ?perm=denied or ?perm=undetermined shows those states in the browser. */
+
+const permStart = (new URLSearchParams(location.search).get("perm") ?? "granted") as Permissions["mic"];
+let perms: Permissions = { mic: permStart, systemAudio: permStart === "undetermined" ? "denied" : permStart };
+export const permissionsGet = () => call("permissions_get", () => perms);
+export const permissionRequest = (kind: "mic" | "system_audio") => call("permission_request", () => {
+  // the OS only prompts once; after a denial the user has to go to System Settings
+  if (kind === "mic" && perms.mic === "undetermined") perms = { ...perms, mic: "granted" };
+  commit();
+  return perms;
+});
+
+/* Export all (share): the desktop app writes one markdown file per note. The browser has no folder to write to. */
+
+export const notesExport = () => call("notes_export", () => ({
+  dir: "", count: db.notes.filter((n) => !n.deletedAt).length,
+}));

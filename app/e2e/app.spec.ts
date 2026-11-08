@@ -233,13 +233,13 @@ test("calendars: link is validated, then listed and removable", async ({ page })
 });
 
 test("stub routes exist for every unbuilt screen", async ({ page }) => {
-  await open(page, "/settings/preferences");
+  await open(page, "/settings/profile");
   await expect(page.getByText("Not built yet")).toBeVisible();
   await open(page, "/no/such/page");
   await expect(page.getByText("This page does not exist.")).toBeVisible();
 });
 
-const SCREENS: [string, string][] = [["S05", "/"], ["S06", "/"], ["S09-seed", "/note/n-hiring"], ["S13-builtin", "/templates"], ["S22-seed", "/trash"], ["S23-seed", "/folder/f-hiring"]];
+const SCREENS: [string, string][] = [["S03", "/welcome/audio"], ["S28", "/settings/preferences"], ["S05", "/"], ["S06", "/"], ["S09-seed", "/note/n-hiring"], ["S13-builtin", "/templates"], ["S22-seed", "/trash"], ["S23-seed", "/folder/f-hiring"]];
 
 for (const [w, h] of [[1440, 900], [390, 844]] as const) {
   for (const scheme of ["light", "dark"] as const) {
@@ -258,3 +258,64 @@ for (const [w, h] of [[1440, 900], [390, 844]] as const) {
     });
   }
 }
+
+test("S03 permissions: undetermined mic is asked, then Continue opens", async ({ page }) => {
+  await open(page, "/welcome/audio", "?perm=undetermined");
+  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
+  await page.getByRole("button", { name: "Allow" }).first().click();
+  await expect(page.getByText("Allowed").first()).toBeVisible();
+  await expect(page.getByText(/start without system audio/)).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page).toHaveURL(/#\/$/);
+});
+
+test("S03 permissions: a denied permission points to System Settings", async ({ page }) => {
+  await open(page, "/welcome/audio", "?perm=denied");
+  await page.getByRole("button", { name: "Allow" }).first().click();
+  const warn = page.getByRole("alert").filter({ hasText: "macOS is blocking microphone" });
+  await expect(warn).toBeVisible();
+  await expect(warn.getByRole("button", { name: "Open System Settings" })).toBeVisible();
+  expect(await serious(page)).toEqual([]);
+  await page.screenshot({ path: `${shots}/S03-denied.png` });
+});
+
+test("S28 settings: validates, saves, discards; export explains the browser limit", async ({ page }) => {
+  await open(page, "/settings/preferences");
+  const save = page.getByRole("button", { name: "Save" });
+  await expect(save).toBeDisabled();
+  await page.getByLabel("Model address").fill("localhost:11434");
+  await save.click();
+  await expect(page.getByRole("alert")).toContainText("must start with http");
+  await page.getByLabel("Model address").fill("http://127.0.0.1:1234");
+  await page.getByRole("radio", { name: /Keep for 7 days/ }).click();
+  const words = page.getByLabel("Words to spell right");
+  await words.fill("Kubernetes");
+  await words.press("Enter");
+  await save.click();
+  await expect(page.getByText("Saved.")).toBeVisible();
+  await expect(save).toBeDisabled();
+  await page.getByRole("radio", { name: /Transcript only/ }).click();
+  await expect(page.getByLabel("Model address")).toHaveCount(0);
+  await page.getByRole("button", { name: "Discard changes" }).click();
+  await expect(page.getByLabel("Model address")).toHaveValue("http://127.0.0.1:1234");
+  await expect(page.getByRole("radio", { name: /Keep for 7 days/ })).toBeChecked();
+  await page.getByRole("button", { name: "Export all notes" }).click();
+  await expect(page.getByText(/notes would be exported/)).toBeVisible();
+  expect(await serious(page)).toEqual([]);
+  await page.screenshot({ path: `${shots}/S28.png` });
+  expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight), "window scrolls instead of main").toBe(true);
+});
+
+test("S28 settings: keyboard only, change retention and save", async ({ page }) => {
+  await open(page, "/settings/preferences");
+  await page.getByRole("combobox", { name: "Summary length" }).focus();
+  await page.keyboard.press("Tab"); // into the audio choices, on the checked one
+  await expect(page.getByRole("radio", { name: /Delete once transcribed/ })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("radio", { name: /Keep for 7 days/ })).toBeFocused();
+  await page.keyboard.press("Space"); // Radix checks on arrow-focus only while the key is held; a 0 ms tap under load can miss it
+  await expect(page.getByRole("radio", { name: /Keep for 7 days/ })).toBeChecked();
+  await page.getByRole("button", { name: "Save" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Saved.")).toBeVisible();
+});

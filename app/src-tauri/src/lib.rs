@@ -415,6 +415,56 @@ fn mic_permission() -> String {
     capture::mic_permission().to_string()
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Permissions {
+    mic: String,
+    system_audio: String,
+}
+
+#[tauri::command(async)]
+fn permissions_get() -> Permissions {
+    Permissions { mic: capture::mic_permission().into(), system_audio: capture::system_audio_permission().into() }
+}
+
+#[tauri::command(async)]
+fn permission_request(st: State<St>, kind: String) -> R<Permissions> {
+    capture::request_permission(&kind).map_err(err)?;
+    (st.0.notify)();
+    Ok(permissions_get())
+}
+
+#[derive(Serialize)]
+struct Export {
+    dir: String,
+    count: usize,
+}
+
+/// Every note not in the trash as one markdown file, in a new dated folder under ~/Documents.
+#[tauri::command(async)]
+fn notes_export(st: State<St>) -> R<Export> {
+    let home = std::env::var("HOME").map_err(|_| "Could not find your home folder.".to_string())?;
+    let stamp = chrono::Local::now().format("%Y-%m-%d %H%M");
+    let dir = std::path::Path::new(&home).join("Documents").join(format!("Meeting notes {stamp}"));
+    read(&st, |c| {
+        let rows: Vec<(String, String, i64)> = c
+            .prepare("select id, title, created_at from notes where deleted_at is null order by created_at")?
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+            .collect::<Result<_, _>>()?;
+        std::fs::create_dir_all(&dir)?;
+        let mut used = std::collections::HashSet::new();
+        for (id, title, at) in &rows {
+            let day = chrono::DateTime::from_timestamp_millis(*at).map(|d| d.with_timezone(&chrono::Local).format("%Y-%m-%d").to_string()).unwrap_or_default();
+            let safe: String = notes::title_of(title).chars().map(|ch| if "/\\:*?\"<>|".contains(ch) || ch.is_control() { '-' } else { ch }).take(80).collect();
+            let mut name = format!("{day} {}", safe.trim());
+            let mut n = 2;
+            while !used.insert(name.to_lowercase()) { name = format!("{day} {} ({n})", safe.trim()); n += 1; }
+            std::fs::write(dir.join(format!("{name}.md")), notes::markdown(c, id)?)?;
+        }
+        Ok(Export { dir: dir.to_string_lossy().into(), count: rows.len() })
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -439,7 +489,7 @@ pub fn run() {
             folders_tree, folder_save, folder_delete, notes_add_to_folder, notes_remove_from_folder,
             note_trash, note_restore, note_delete_forever,
             note_copy_markdown, note_email_draft, search, chat_send,
-            settings_get, settings_update, mic_permission,
+            settings_get, settings_update, mic_permission, permissions_get, permission_request, notes_export,
         ])
         .build(tauri::generate_context!())
         .expect("error while building the app")

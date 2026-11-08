@@ -8,7 +8,6 @@ export type StubScreen = { id: string; path: string; name: string; purpose: stri
 
 export const STUBS: StubScreen[] = [
   { id: "S01", path: "/welcome", name: "Welcome", purpose: "First launch. No account needed; explains that everything stays on this computer.", when: "Milestone 1, onboarding" },
-  { id: "S03", path: "/welcome/audio", name: "Microphone and system audio", purpose: "Ask for both permissions, with help when one is denied.", when: "Milestone 1, onboarding" },
   { id: "S04", path: "/welcome/sample", name: "Sample note", purpose: "A short sample meeting to show how notes come together.", when: "Could-have" },
   { id: "S11", path: "/recipes", name: "Saved prompts", purpose: "Browse and search your saved chat prompts.", when: "Should-have" },
   { id: "S12", path: "/recipes/new", name: "Prompt editor", purpose: "Name, prompt text and scope for a saved prompt.", when: "Should-have" },
@@ -23,7 +22,6 @@ export const STUBS: StubScreen[] = [
   { id: "S25", path: "/brief/:id", name: "Meeting brief", purpose: "What you discussed last time with the same people.", when: "Should-have" },
   { id: "S26", path: "/follow-up/:id", name: "Follow-up email", purpose: "A draft email to attendees after the meeting.", when: "Should-have (chat can already draft one)" },
   { id: "S27", path: "/settings/profile", name: "Settings: profile", purpose: "Your name, role and context for better notes.", when: "Should-have" },
-  { id: "S28", path: "/settings/preferences", name: "Settings: preferences", purpose: "Theme, recording indicator, retention, language and word list.", when: "Should-have" },
   { id: "S29", path: "/settings/notifications", name: "Settings: notifications", purpose: "Which meeting pop-ups appear.", when: "Should-have" },
   { id: "S30", path: "/settings/workspace", name: "Settings: workspace", purpose: "Team name, members and roles.", when: "Milestone 3, needs the sync server" },
   { id: "S31", path: "/settings/spaces", name: "Settings: spaces", purpose: "Custom spaces for teams.", when: "Milestone 3, needs the sync server" },
