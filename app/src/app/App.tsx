@@ -6,6 +6,7 @@ import { NoteScreen } from "../screens/Note";
 import { FolderScreen } from "../screens/Folder";
 import { Trash } from "../screens/Trash";
 import { Templates } from "../screens/Templates";
+import { Recipes } from "../screens/Recipes";
 import { Calendars } from "../screens/Calendars";
 import { Permissions } from "../screens/Permissions";
 import { Settings } from "../screens/Settings";
@@ -26,6 +27,7 @@ function Screen({ path }: { path: string }) {
   if ((m = match("/folder/:id", path))) return <FolderScreen key={m.id} id={m.id} />;
   if (path === "/trash") return <Trash />;
   if (path === "/templates") return <Templates />;
+  if (path === "/recipes" || path === "/recipes/new") return <Recipes />;
   if (path === "/welcome/calendar") return <Calendars />;
   if (path === "/welcome/audio") return <Permissions />;
   if (path === "/settings/preferences" || path === "/settings") return <Settings />;

@@ -8,6 +8,7 @@ import { SidePanel } from "../app/Layout";
 import { chatSend, chatThreadDelete, chatThreadGet, chatThreads } from "../data/api";
 import { useLive } from "../data/store";
 import { dayLabel, time } from "../data/format";
+import { useRecipeOptions } from "./recipeOptions";
 
 type Msg = { role: "user" | "assistant"; text: string; citations?: { label: string; href: string }[]; error?: string; streaming?: boolean };
 const SUGGESTIONS = ["List the action items", "Draft a follow-up email", "What did we decide?"];
@@ -15,6 +16,7 @@ const SUGGESTIONS = ["List the action items", "Draft a follow-up email", "What d
 const ACROSS = ["Which questions came up in more than one interview?", "Where were my answers weakest?"];
 
 export function ChatPanel({ scope, first, onClose }: { scope: { ids: string[] | "all"; label: string }; first?: string; onClose: () => void }) {
+  const recipeOptions = useRecipeOptions();
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [threadId, setThreadId] = useState<string>();
   const [note, setNote] = useState("");
@@ -65,7 +67,7 @@ export function ChatPanel({ scope, first, onClose }: { scope: { ids: string[] | 
         <span className="truncate text-xs text-muted">{scope.label}</span>
         {msgs.length > 0 && !streaming && <Button size="sm" variant="ghost" onClick={fresh}>New chat</Button>}
       </>}
-      footer={<ChatBar scope={scope.label} streaming={streaming} onSend={ask} onStop={() => ctrl.current?.abort()} />}>
+      footer={<ChatBar scope={scope.label} recipes={recipeOptions} streaming={streaming} onSend={ask} onStop={() => ctrl.current?.abort()} />}>
       {msgs.length === 0 ? (
         <div className="flex flex-col items-start gap-2">
           <p className="text-sm text-muted">Put a question to {scope.ids === "all" ? "all your notes" : "this note"}. Answers come from your notes and transcripts only.</p>

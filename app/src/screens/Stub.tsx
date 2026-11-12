@@ -9,8 +9,6 @@ export type StubScreen = { id: string; path: string; name: string; purpose: stri
 export const STUBS: StubScreen[] = [
   { id: "S01", path: "/welcome", name: "Welcome", purpose: "First launch. No account needed; explains that everything stays on this computer.", when: "Milestone 1, onboarding" },
   { id: "S04", path: "/welcome/sample", name: "Sample note", purpose: "A short sample meeting to show how notes come together.", when: "Could-have" },
-  { id: "S11", path: "/recipes", name: "Saved prompts", purpose: "Browse and search your saved chat prompts.", when: "Should-have" },
-  { id: "S12", path: "/recipes/new", name: "Prompt editor", purpose: "Name, prompt text and scope for a saved prompt.", when: "Should-have" },
   { id: "S14", path: "/share", name: "Share a note", purpose: "Invite people and set link access.", when: "Milestone 3, needs the sync server" },
   { id: "S15", path: "/locked", name: "No access", purpose: "Ask the owner for access to a shared note.", when: "Milestone 3, needs the sync server" },
   { id: "S16", path: "/people", name: "People", purpose: "Everyone you have met, from calendar invitees.", when: "Could-have" },

@@ -969,3 +969,83 @@ test("F06-E6 chats belong to their notes: a note's chat is not listed across all
   await expect(all.getByRole("region", { name: "Earlier chats here" }).getByRole("button", { name: /^anything/ })).toBeVisible();
   await expect(all.getByRole("region", { name: "Earlier chats here" }).getByRole("button", { name: /^What did we decide/ })).toHaveCount(0);
 });
+
+/* S11/S12 recipes, F08 run with /name */
+
+test("F08-H1 make a recipe, see its shortcut, edit it, clash, delete it", async ({ page }) => {
+  await open(page, "/recipes");
+  const nav = page.getByRole("navigation", { name: "Recipes" });
+  await expect(nav.getByRole("button", { name: /Decisions/ })).toBeVisible();
+  await nav.getByRole("button", { name: /Decisions/ }).click();
+  await expect(page.getByRole("button", { name: "Duplicate" })).toBeVisible(); // built in: read-only
+  await page.getByRole("button", { name: "New recipe" }).click();
+  await page.getByLabel("Name").fill("Risk check: Größe & Ärger");
+  await expect(page.getByText("Runs with /risk-check-grosse-arger")).toBeVisible();
+  await page.getByRole("radio", { name: /Several meetings/ }).click();
+  await page.getByLabel("What to ask").fill("List the risks, who raised each one, and what we agreed.");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Saved. Type /risk-check-grosse-arger in Ask to run it.")).toBeVisible();
+  await expect(nav.getByRole("button", { name: /Risk check/ })).toBeVisible();
+  await page.getByLabel("Shortcut").fill("decisions");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("alert").or(page.getByText(/already uses \/decisions/)).first()).toContainText("already uses /decisions");
+  await page.getByLabel("Shortcut").fill("risks");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Saved. Type /risks in Ask to run it.")).toBeVisible();
+  const axe = await new AxeBuilder({ page }).analyze();
+  expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
+  await page.screenshot({ path: "../replica/clone-screens/S12.png" });
+  await page.getByRole("button", { name: "Delete" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+  await expect(nav.getByRole("button", { name: /Risk check/ })).toHaveCount(0);
+});
+
+test("F08-E1 empty name or prompt says why", async ({ page }) => {
+  await open(page, "/recipes");
+  await page.getByRole("button", { name: "New recipe" }).click();
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Give the recipe a name of up to 40 characters.")).toBeVisible();
+  await page.getByLabel("Name").fill("Only a name");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Write what the recipe should ask.")).toBeVisible();
+});
+
+test("F08-H2 / in a note's Ask bar lists recipes, filters, Enter picks, then it runs", async ({ page }) => {
+  await open(page, "/note/n-hiring");
+  const bar = page.getByLabel("Ask about your notes");
+  await bar.fill("/");
+  const menu = page.getByRole("listbox");
+  await expect(menu.getByRole("option", { name: /\/follow-up/ })).toBeVisible();
+  await bar.fill("/fol");
+  await expect(menu.getByRole("option")).toHaveCount(1);
+  await bar.press("Enter");
+  await expect(bar).toHaveValue("/follow-up ");
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await bar.press("Enter");
+  const panel = page.getByRole("complementary", { name: "Ask" });
+  await expect(panel.getByText("/follow-up")).toBeVisible();
+  await expect(panel.getByText(/Subject: Notes from/)).toBeVisible(); // the recipe's prompt was asked
+});
+
+test("F08-N1 a one-meeting recipe on Home, and an unknown one, say why", async ({ page }) => {
+  await open(page, "/");
+  const bar = page.getByLabel("Ask about your notes");
+  await bar.fill("/follow-up");
+  await bar.press("Escape");
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await bar.press("Enter");
+  const panel = page.getByRole("complementary", { name: "Ask" });
+  await expect(panel.getByRole("alert")).toContainText("/follow-up works on one meeting. Open a note and ask there.");
+  await panel.getByLabel("Ask about your notes").fill("/nope");
+  await panel.getByLabel("Ask about your notes").press("Escape");
+  await panel.getByLabel("Ask about your notes").press("Enter");
+  await expect(panel.getByRole("alert").last()).toContainText("There is no recipe called /nope");
+});
+
+test("F08-E2 recipes page at 390px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page, "/recipes");
+  await expect(page.getByRole("navigation", { name: "Recipes" })).toBeVisible();
+  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: "../replica/clone-screens/S11-390.png", fullPage: true });
+});

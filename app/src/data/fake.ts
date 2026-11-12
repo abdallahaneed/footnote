@@ -2,8 +2,8 @@
 // The real one is real.ts (Tauri commands); api.ts picks one. Keep both in step.
 import { commit, db } from "./store";
 import { COMMIT, generate, mdPlain, toMarkdown } from "./generate";
-import { clock } from "./format";
-import type { CalendarEvent, Folder, Note, Permissions, SearchHit, Segment, Settings, Template } from "./types";
+import { clock, slugify } from "./format";
+import type { CalendarEvent, Folder, Note, Permissions, Recipe, SearchHit, Segment, Settings, Template } from "./types";
 
 const DAY = 86_400_000;
 const SEG_MS = 1500; // a real segment is 8-15 s; shortened so the fake transcript moves
@@ -394,6 +394,58 @@ function answer(scopeIds: string[] | "all", text: string): { text: string; citat
   return { text: ["From your notes:", ...hits.map(({ n, s }) => `- "${s.text}" (${titleOf(n)}, ${clock(s.startMs)})`)].join("\n"), citations: cite(hits.map((h) => h.n)) };
 }
 
+/* Recipes (S11/S12), same rules as recipes.rs ---------------------------------- */
+
+let recipes: Recipe[] = [
+  { id: "r-follow-up", slug: "follow-up", name: "Follow-up email", scope: "single", builtIn: true,
+    prompt: "Write a short follow-up email to the people in this meeting. Thank them in one line, list what was agreed with who owns each item and by when, then the questions still open. Plain text, under 150 words." },
+  { id: "r-decisions", slug: "decisions", name: "Decisions", scope: "single", builtIn: true,
+    prompt: "List every decision made in this meeting, who owns it, and the reason given for it. If nothing was decided, say so plainly." },
+  { id: "r-weekly-update", slug: "weekly-update", name: "Weekly update", scope: "multiple", builtIn: true,
+    prompt: "Write a weekly update from these meetings: progress, decisions, risks and what comes next. Group the points by topic, not by meeting, and keep each to one line." },
+  { id: "r-open-questions", slug: "open-questions", name: "Open questions", scope: "multiple", builtIn: true,
+    prompt: "List the questions that were raised in these meetings but not answered, and the meeting each one came from." },
+];
+const byName = (a: Recipe, b: Recipe) => Number(b.builtIn) - Number(a.builtIn) || a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+export const recipesList = () => call("recipes_list", () => [...recipes].sort(byName));
+export const recipeSave = (r: Recipe) => call("recipe_save", () => {
+  const name = r.name.trim();
+  if (!name || name.length > 40) throw new Error("Give the recipe a name of up to 40 characters.");
+  const slug = slugify(r.slug.trim() ? r.slug : name);
+  if (!slug) throw new Error("The shortcut needs at least one letter or number.");
+  const prompt = r.prompt.trim();
+  if (!prompt) throw new Error("Write what the recipe should ask.");
+  if (prompt.length > 4000) throw new Error("Keep the prompt under 4,000 characters.");
+  const other = recipes.find((x) => x.slug === slug && x.id !== r.id);
+  if (other) throw new Error(`"${other.name}" already uses /${slug}. Pick another shortcut.`);
+  if (r.id) {
+    const cur = recipes.find((x) => x.id === r.id);
+    if (!cur) throw new Error("This recipe was deleted.");
+    if (cur.builtIn) throw new Error("Built-in recipes cannot be changed. Duplicate it to make your own.");
+    Object.assign(cur, { slug, name, prompt, scope: r.scope });
+    commit();
+    return cur;
+  }
+  const n: Recipe = { id: uid(), slug, name, prompt, scope: r.scope, builtIn: false };
+  recipes.push(n);
+  commit();
+  return n;
+});
+export const recipeDelete = (id: string) => call("recipe_delete", () => {
+  if (recipes.find((r) => r.id === id)?.builtIn) throw new Error("Built-in recipes cannot be deleted.");
+  recipes = recipes.filter((r) => r.id !== id);
+  commit();
+});
+function resolveRecipe(text: string, oneNote: boolean): string {
+  const t = text.trim();
+  if (!t.startsWith("/")) return text;
+  const [slug, ...rest] = t.slice(1).split(/\s+/);
+  const r = recipes.find((x) => x.slug === slug.toLowerCase());
+  if (!r) throw new Error(`There is no recipe called /${slug}. Your recipes are under Recipes in the sidebar.`);
+  if (r.scope === "single" && !oneNote) throw new Error(`/${r.slug} works on one meeting. Open a note and ask there.`);
+  return rest.length ? `${r.prompt}\n\nAlso: ${rest.join(" ")}` : r.prompt;
+}
+
 // History (S10), same rules as chat.rs: one list of chats per exact set of notes.
 type Stored = { role: "user" | "assistant"; content: string; citations: Citation[]; failed: boolean };
 type Thread = { id: string; key: string; title: string; updatedAt: number; msgs: Stored[] };
@@ -411,8 +463,9 @@ export async function chatSend(q: { scopeIds: string[] | "all"; text: string; th
     let t = q.threadId ? threads.find((x) => x.id === q.threadId) : undefined;
     if (q.threadId && !t) throw new Error("This chat was deleted.");
     if (!t) { t = { id: uid(), key: keyOf(q.scopeIds), title: q.text.trim().replace(/\s+/g, " ").slice(0, 80), updatedAt: Date.now(), msgs: [] }; threads.push(t); }
+    const question = resolveRecipe(q.text, q.scopeIds !== "all" && q.scopeIds.length === 1);
     t.msgs.push({ role: "user", content: q.text, citations: [], failed: false });
-    const a = answer(q.scopeIds, q.text);
+    const a = answer(q.scopeIds, question);
     t.msgs.push({ role: "assistant", content: a.text, citations: a.citations, failed: false });
     t.updatedAt = Date.now();
     commit();

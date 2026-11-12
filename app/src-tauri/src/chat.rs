@@ -118,13 +118,13 @@ pub fn thread_start(conn: &Connection, scope: Option<&[String]>, question: &str,
     Ok(id)
 }
 
-pub fn add_message(conn: &Connection, thread: &str, role: &str, content: &str, citations: &[Citation], status: &str) -> anyhow::Result<()> {
+pub fn add_message(conn: &Connection, thread: &str, role: &str, content: &str, citations: &[Citation], status: &str, recipe: Option<&str>) -> anyhow::Result<()> {
     let now = crate::db::now_ms();
     let n = conn.execute("update chat_threads set updated_at = ?2 where id = ?1", rusqlite::params![thread, now])?;
     anyhow::ensure!(n == 1, "This chat was deleted.");
     conn.execute(
-        "insert into chat_messages (id, thread_id, role, content, citations, status, created_at) values (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        rusqlite::params![crate::db::uid(), thread, role, content, serde_json::to_string(citations)?, status, now],
+        "insert into chat_messages (id, thread_id, role, content, citations, status, recipe_id, created_at) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        rusqlite::params![crate::db::uid(), thread, role, content, serde_json::to_string(citations)?, status, recipe, now],
     )?;
     Ok(())
 }
@@ -181,9 +181,9 @@ mod tests {
         let c = crate::db::mem();
         let (a, b) = ("n-a".to_string(), "n-b".to_string());
         let t = thread_start(&c, Some(&[a.clone()]), "  What did   we decide about pricing?  ", "apple").unwrap();
-        add_message(&c, &t, "user", "What did we decide about pricing?", &[], "done").unwrap();
+        add_message(&c, &t, "user", "What did we decide about pricing?", &[], "done", None).unwrap();
         let cite = vec![Citation { label: "Roadmap".into(), href: "#/note/n-a".into() }];
-        add_message(&c, &t, "assistant", "Price stays.", &cite, "done").unwrap();
+        add_message(&c, &t, "assistant", "Price stays.", &cite, "done", None).unwrap();
         let both = thread_start(&c, Some(&[b.clone(), a.clone()]), "x", "apple").unwrap();
         thread_start(&c, None, "everything", "apple").unwrap();
 
@@ -197,7 +197,7 @@ mod tests {
         delete_thread(&c, &t).unwrap();
         assert!(threads(&c, Some(&[a.clone()])).unwrap().is_empty());
         assert_eq!(c.query_row("select count(*) from chat_messages", [], |r| r.get::<_, i64>(0)).unwrap(), 0, "messages deleted too");
-        assert!(add_message(&c, &t, "user", "late", &[], "done").unwrap_err().to_string().contains("deleted"));
+        assert!(add_message(&c, &t, "user", "late", &[], "done", None).unwrap_err().to_string().contains("deleted"));
         let long = thread_start(&c, None, &"word ".repeat(40), "m").unwrap();
         assert!(threads(&c, None).unwrap().iter().find(|t| t.id == long).unwrap().title.chars().count() <= 80);
     }

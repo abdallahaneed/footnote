@@ -17,6 +17,7 @@ import { clock, dayLabel, duration, liveMs, stageOf, time } from "../data/format
 import type { GenLine, Note, Segment, Template } from "../data/types";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { ChatPanel } from "./ChatPanel";
+import { useRecipeOptions } from "./recipeOptions";
 
 function useNow(on: boolean) {
   const [now, setNow] = useState(Date.now());
@@ -25,6 +26,7 @@ function useNow(on: boolean) {
 }
 
 export function NoteScreen({ id }: { id: string }) {
+  const recipeOptions = useRecipeOptions();
   const b = useLive(() => noteGet(id), [id]);
   const [panel, setPanel] = useState<"transcript" | "chat" | null>(null);
   const [chatFirst, setChatFirst] = useState<string>();
@@ -131,7 +133,7 @@ export function NoteScreen({ id }: { id: string }) {
       {panel !== "chat" && (
         <div className="sticky bottom-0 mt-auto bg-bg px-4 pb-4 pt-2 md:px-6">
           <div className="mx-auto max-w-[var(--content-max)]">
-            <ChatBar scope="This note" onSend={(q) => { setChatFirst(q); setPanel("chat"); }} onStop={() => {}} />
+            <ChatBar scope="This note" recipes={recipeOptions} onSend={(q) => { setChatFirst(q); setPanel("chat"); }} onStop={() => {}} />
           </div>
         </div>
       )}

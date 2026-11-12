@@ -11,8 +11,10 @@ import { folderDelete, foldersTree, notesList, notesRemoveFromFolder } from "../
 import { useLive } from "../data/store";
 import { NoteList } from "./NoteList";
 import { ChatPanel } from "./ChatPanel";
+import { useRecipeOptions } from "./recipeOptions";
 
 export function FolderScreen({ id }: { id: string }) {
+  const recipeOptions = useRecipeOptions();
   const folders = useLive(() => foldersTree(), []);
   const notes = useLive(() => notesList({ folderId: id }), [id]);
   const [renaming, setRenaming] = useState(false);
@@ -47,7 +49,7 @@ export function FolderScreen({ id }: { id: string }) {
       </Page>
       {chat === null && !!notes.data?.length && (
         <div className="sticky bottom-0 mt-auto bg-bg px-4 pb-4 pt-2 md:px-6">
-          <div className="mx-auto max-w-[var(--content-max)]"><ChatBar scope={folder.name} onSend={setChat} onStop={() => {}} /></div>
+          <div className="mx-auto max-w-[var(--content-max)]"><ChatBar scope={folder.name} recipes={recipeOptions} onSend={setChat} onStop={() => {}} /></div>
         </div>
       )}
       {renaming && <FolderDialog folder={folder} onClose={() => setRenaming(false)} />}

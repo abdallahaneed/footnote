@@ -53,9 +53,9 @@ Answer cites source notes,chat,should,yes,yes,guess; needed for trust; build: ci
 Chat history with delete,chat,should,yes,yes,"S10, 2026-11-12: every question and answer saved with its sources (migration 0007); the empty panel lists earlier chats for the same notes, to reopen, continue or delete; limit: a follow-up does not yet send the earlier answers to the model"
 Model picker,chat,could,yes,no,S10; settings has Apple / Groq plus a Groq model name; no picker inside chat
 Suggested actions (list actions / follow-up email),chat,should,yes,partial,S10 marketing site; build: buttons work on stand-in answers
-Recipes: create / edit / delete saved prompts,recipes,should,yes,no,S11 S12
-Run recipe with /name,recipes,should,yes,no,F08
-Recipe scope single vs multiple meetings,recipes,should,yes,no,S12
+Recipes: create / edit / delete saved prompts,recipes,should,yes,yes,"S11/S12, 2026-11-12: Recipes page in the sidebar; four built-in recipes written for Footnote (read-only, Duplicate to change); your own with name, shortcut, prompt and scope; shortcut cleaned (Größe -> grosse) and unique"
+Run recipe with /name,recipes,should,yes,yes,"F08, 2026-11-12: / in any Ask bar opens a menu of recipes (arrows, Enter, Escape); the core turns /name and any extra words into the prompt; unknown names say so"
+Recipe scope single vs multiple meetings,recipes,should,yes,yes,"S12, 2026-11-12: one-meeting recipes only run in a note's Ask panel and say so elsewhere; several-meeting ones run anywhere"
 Share or remix recipes,recipes,could,yes,no,needs sync or export/import file
 Pre-meeting brief,briefs,should,yes,no,S25; paid feature in Granola
 Follow-up email draft,briefs,should,yes,no,S26; paid feature in Granola

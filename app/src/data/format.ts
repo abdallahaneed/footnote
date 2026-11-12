@@ -42,3 +42,8 @@ export function groupBy<T>(items: T[], key: (t: T) => string): [string, T[]][] {
   for (const i of items) { const k = key(i); m.set(k, [...(m.get(k) ?? []), i]); }
   return [...m];
 }
+
+// Recipe shortcut, same as recipes.rs slugify: "Follow-up Email!" -> "follow-up-email".
+export const slugify = (s: string) => s.trim().replace(/^\//, "").toLowerCase()
+  .replace(/ä/g, "a").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ß/g, "ss")
+  .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "");

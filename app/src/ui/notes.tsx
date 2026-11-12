@@ -207,21 +207,33 @@ function BubbleActions({ onCopy, onDelete }: { onCopy: () => void; onDelete: () 
 
 /* Chat bar and messages (S10) ------------------------------------------------------- */
 
-export function ChatBar({ scope, onClearScope, streaming, onSend, onStop, trailing }: {
+// `recipes`: typing "/" at the start opens a menu of them; picking one fills in "/shortcut ". Escape closes it.
+export function ChatBar({ scope, onClearScope, streaming, onSend, onStop, trailing, recipes }: {
   scope?: string; onClearScope?: () => void; streaming?: boolean; onSend: (q: string) => void; onStop: () => void; trailing?: ReactNode;
+  recipes?: Option[];
 }) {
   const [q, setQ] = useState("");
+  const [closed, setClosed] = useState(false);
+  const menu = !!recipes?.length && !closed && /^\/\S*$/.test(q);
   const send = () => { if (q.trim()) { onSend(q.trim()); setQ(""); } };
+  const pick = (o: Option) => { setQ(`${o.label} `); setClosed(true); };
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-border bg-bg px-2 shadow-card focus-within:border-accent" style={{ height: "var(--chat-bar)" }}>
+    <div className="relative flex items-center gap-2 rounded-lg border border-border bg-bg px-2 shadow-card focus-within:border-accent" style={{ height: "var(--chat-bar)" }}>
+      {menu && <div className="absolute bottom-full left-0 z-20 mb-1"><SlashMenu query={q.slice(1)} items={recipes!} onPick={pick} /></div>}
       {scope && (
         <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-pill bg-surface-2 pl-2 pr-1 text-xs text-fg">
           {scope}
           {onClearScope && <button aria-label={`Remove scope ${scope}`} onClick={onClearScope} className="rounded-pill p-0.5 hover:bg-border"><X className="size-3" aria-hidden /></button>}
         </span>
       )}
-      <input aria-label="Ask about your notes" placeholder="Ask about your notes…" value={q} onChange={(e) => setQ(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && !streaming && send()}
+      <input aria-label="Ask about your notes" placeholder="Ask about your notes… (/ for recipes)" value={q}
+        onChange={(e) => { setQ(e.target.value); if (!e.target.value.startsWith("/")) setClosed(false); }}
+        role="combobox" aria-autocomplete="list" aria-expanded={menu}
+        onKeyDown={(e) => {
+          if (menu && e.key === "Escape") { e.preventDefault(); setClosed(true); return; }
+          // while the menu is open, Enter picks (SlashMenu marks it handled; the menu may already be closed by now)
+          if (e.key === "Enter" && !e.defaultPrevented && !menu && !streaming) send();
+        }}
         className="h-full min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-muted" />
       {trailing}
       {streaming

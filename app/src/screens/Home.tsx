@@ -10,8 +10,10 @@ import { useLive } from "../data/store";
 import { dayLabel, groupBy, time } from "../data/format";
 import { NoteList } from "./NoteList";
 import { ChatPanel } from "./ChatPanel";
+import { useRecipeOptions } from "./recipeOptions";
 
 export function Home() {
+  const recipeOptions = useRecipeOptions();
   const events = useLive(() => calendarUpcoming(), []);
   const notes = useLive(() => notesList(), []);
   const folders = useLive(() => foldersTree(), []);
@@ -58,7 +60,7 @@ export function Home() {
       </Page>
       {chat === null && (
         <div className="sticky bottom-0 mt-auto bg-bg px-4 pb-4 pt-2 md:px-6">
-          <div className="mx-auto max-w-[var(--content-max)]"><ChatBar scope="All notes" onSend={setChat} onStop={() => {}} /></div>
+          <div className="mx-auto max-w-[var(--content-max)]"><ChatBar scope="All notes" recipes={recipeOptions} onSend={setChat} onStop={() => {}} /></div>
         </div>
       )}
     </WithPanel>

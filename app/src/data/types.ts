@@ -6,6 +6,9 @@ export type CalendarEvent = { id: string; title: string; startAt: number; endAt:
 export type Section = { heading: string; instructions: string };
 export type Template = { id: string; name: string; description: string; sections: Section[]; builtIn: boolean };
 
+// S11/S12 saved chat prompt, run with /slug. "single" needs one meeting.
+export type Recipe = { id: string; slug: string; name: string; prompt: string; scope: "single" | "multiple"; builtIn: boolean };
+
 export type Segment = {
   id: string; noteId: string; side: "me" | "them"; speaker: string; startMs: number; endMs: number; text: string; deleted?: boolean;
 };

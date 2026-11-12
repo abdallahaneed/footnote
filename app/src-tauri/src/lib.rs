@@ -4,6 +4,7 @@ mod apple;
 mod calendar;
 mod capture;
 mod chat;
+mod recipes;
 mod db;
 mod enhance;
 mod jobs;
@@ -356,9 +357,15 @@ fn chat_send(st: State<St>, scope_ids: Option<Vec<String>>, text: String, thread
     if text.is_empty() || text.chars().count() > 4000 {
         return Err("Ask a question of up to 4000 characters.".into());
     }
-    let (ctx, llm) = read(&st, |c| {
+    // "/name ..." runs a recipe: its prompt is the question, checked against the chat's scope
+    let one_note = scope_ids.as_ref().is_some_and(|ids| ids.len() == 1);
+    let (ctx, llm, recipe, question) = read(&st, |c| {
         let llm = jobs::llm(c)?;
-        Ok((chat::context(c, scope_ids.as_deref(), &text, llm.window())?, llm))
+        let (recipe, question) = match recipes::resolve(c, &text, one_note)? {
+            Some((r, q)) => (Some(r.id), q),
+            None => (None, text.clone()),
+        };
+        Ok((chat::context(c, scope_ids.as_deref(), &question, llm.window())?, llm, recipe, question))
     })?;
     if let Some(t) = &thread_id {
         check_id(t)?;
@@ -368,22 +375,22 @@ fn chat_send(st: State<St>, scope_ids: Option<Vec<String>>, text: String, thread
             Some(t) => t,
             None => chat::thread_start(c, scope_ids.as_deref(), &text, &format!("{} {}", llm.provider, llm.model))?,
         };
-        chat::add_message(c, &t, "user", &text, &[], "done")?;
+        chat::add_message(c, &t, "user", &text, &[], "done", recipe.as_deref())?;
         Ok(t)
     })?;
     let mut said = String::new();
-    let result = chat::answer(&llm, &ctx, &text, |t| {
+    let result = chat::answer(&llm, &ctx, &question, |t| {
         said.push_str(t);
         on_token.send(t.to_string()).is_ok()
     });
     match result {
         Ok(citations) => {
-            write(&st, |c| chat::add_message(c, &thread, "assistant", &said, &citations, "done"))?;
+            write(&st, |c| chat::add_message(c, &thread, "assistant", &said, &citations, "done", recipe.as_deref()))?;
             Ok(ChatResult { citations, thread_id: thread })
         }
         Err(e) => {
             let msg = e.to_string();
-            let _ = write(&st, |c| chat::add_message(c, &thread, "assistant", &msg, &[], "failed"));
+            let _ = write(&st, |c| chat::add_message(c, &thread, "assistant", &msg, &[], "failed", recipe.as_deref()));
             Err(msg)
         }
     }
@@ -412,6 +419,25 @@ struct Settings {
     theme: String,
     /// None = keep transcripts until the note is deleted.
     transcript_retention_days: Option<i64>,
+}
+
+#[tauri::command(async)]
+fn recipes_list(st: State<St>) -> R<Vec<recipes::Recipe>> {
+    read(&st, recipes::list)
+}
+
+#[tauri::command(async)]
+fn recipe_save(st: State<St>, r: recipes::Recipe) -> R<recipes::Recipe> {
+    if !r.id.is_empty() {
+        check_id(&r.id)?;
+    }
+    write(&st, |c| recipes::save(c, &r))
+}
+
+#[tauri::command(async)]
+fn recipe_delete(st: State<St>, id: String) -> R<()> {
+    check_id(&id)?;
+    write(&st, |c| recipes::delete(c, &id))
 }
 
 #[tauri::command(async)]
@@ -693,7 +719,7 @@ pub fn run() {
             templates_list, template_save, template_delete,
             folders_tree, folder_save, folder_delete, notes_add_to_folder, notes_remove_from_folder,
             note_trash, note_restore, note_delete_forever,
-            note_copy_markdown, note_email_draft, search, chat_send, chat_threads, chat_thread_get, chat_thread_delete,
+            note_copy_markdown, note_email_draft, search, chat_send, chat_threads, chat_thread_get, chat_thread_delete, recipes_list, recipe_save, recipe_delete,
             settings_get, settings_update, mic_permission, permissions_get, permission_request, notes_export,
             meeting_take_notes, meeting_dismiss,
         ])

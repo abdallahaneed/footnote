@@ -1,6 +1,6 @@
-// S06 sidebar: home, folders, templates, trash (hidden when empty), settings.
+// S06 sidebar: home, folders, templates, recipes, trash (hidden when empty), settings.
 import { useEffect, useId, useState } from "react";
-import { FileText, Home, LayoutTemplate, Plus, Search, Settings, Trash2 } from "lucide-react";
+import { FileText, Home, LayoutTemplate, Plus, ScrollText, Search, Settings, Trash2 } from "lucide-react";
 import { Button, IconButton, KeyCaps, Modal, TextInput } from "../ui/base";
 import { SidebarItem } from "../ui/notes";
 import { folderSave, foldersTree, notesList } from "../data/api";
@@ -31,6 +31,7 @@ export function Sidebar({ path, onSearch }: { path: string; onSearch: () => void
       <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2">
         <SidebarItem icon={<Home className="size-4" />} label="Home" selected={path === "/"} onClick={() => go("/")} />
         <SidebarItem icon={<LayoutTemplate className="size-4" />} label="Templates" selected={path === "/templates"} onClick={() => go("/templates")} />
+        <SidebarItem icon={<ScrollText className="size-4" />} label="Recipes" selected={path === "/recipes"} onClick={() => go("/recipes")} />
         <div className="mt-4 flex h-7 items-center justify-between pl-2">
           <h2 className="text-xs font-semibold text-muted">Folders</h2>
           <IconButton label="New folder" onClick={() => setEditing({ name: "", description: "" })}><Plus className="size-4" aria-hidden /></IconButton>

@@ -3,7 +3,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { notify } from "./store";
 import { go } from "../app/router";
-import type { CalendarEvent, Folder, Note, Permissions, SearchHit, Segment, Settings, Template } from "./types";
+import type { CalendarEvent, Folder, Note, Permissions, Recipe, SearchHit, Segment, Settings, Template } from "./types";
 
 // The core emits "changed" after every write and as background work moves on; screens reload.
 if ("__TAURI_INTERNALS__" in window) listen("changed", notify);
@@ -27,6 +27,9 @@ export const transcriptRetry = (id: string) => invoke<void>("transcript_retry", 
 export const templatesList = () => invoke<Template[]>("templates_list");
 export const templateSave = (template: Template) => invoke<Template>("template_save", { template });
 export const templateDelete = (id: string) => invoke<void>("template_delete", { id });
+export const recipesList = () => invoke<Recipe[]>("recipes_list");
+export const recipeSave = (r: Recipe) => invoke<Recipe>("recipe_save", { r });
+export const recipeDelete = (id: string) => invoke<void>("recipe_delete", { id });
 export const foldersTree = () => invoke<FolderRow[]>("folders_tree");
 export const folderSave = (folder: Partial<Folder> & { name: string }) => invoke<Folder>("folder_save", { folder });
 export const folderDelete = (id: string) => invoke<void>("folder_delete", { id });
