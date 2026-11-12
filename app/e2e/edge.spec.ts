@@ -763,3 +763,44 @@ test("F09-E3 folder name over 40 characters says why and keeps the dialog open",
   await expect(d).toBeVisible();
   await expect(d.getByText(/40 characters/)).toBeVisible();
 });
+
+/* S28 note writing: Apple and Groq (b9e32f7) */
+
+test("S28-E6 at 390px the Groq key and model fields fit without sideways scrolling", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page, "/settings/preferences");
+  await page.getByRole("radio", { name: /Groq/ }).click();
+  await expect(page.getByLabel("Groq API key")).toBeVisible();
+  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth)).toBeLessThanOrEqual(390);
+  const save = await page.getByRole("button", { name: "Save key" }).boundingBox();
+  expect(save!.x + save!.width).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: "../replica/clone-screens/S28-groq-390.png", fullPage: true });
+});
+
+test("S28-E7 a Mac that cannot run Apple's model: option disabled, reason shown, Groq still works by keyboard", async ({ page }) => {
+  await open(page, "/settings/preferences", "?apple=old_macos");
+  await expect(page.getByRole("radio", { name: /Built into your Mac/ })).toBeDisabled();
+  await expect(page.getByText("needs macOS 26 or later")).toBeVisible();
+  await page.getByRole("radio", { name: /Groq/ }).focus();
+  await page.keyboard.press("Space");
+  await expect(page.getByRole("radio", { name: /Groq/ })).toBeChecked();
+  await page.getByLabel("Groq API key").focus();
+  await page.keyboard.type("  gsk_spaces_around  ");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Groq key saved in your Keychain.")).toBeVisible();
+  const axe = await new AxeBuilder({ page }).analyze();
+  expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
+});
+
+test("S28-E8 Remove key brings the key field back and survives leaving the page", async ({ page }) => {
+  await open(page, "/settings/preferences");
+  await page.getByRole("radio", { name: /Groq/ }).click();
+  await page.getByLabel("Groq API key").fill("gsk_one");
+  await page.getByRole("button", { name: "Save key" }).click();
+  await page.getByRole("button", { name: "Remove key" }).click();
+  await expect(page.getByLabel("Groq API key")).toBeVisible();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Home" }).click();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Settings" }).click();
+  await expect(page.getByLabel("Groq API key")).toBeVisible();
+  await expect(page.getByText("Groq key saved")).toHaveCount(0);
+});

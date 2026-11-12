@@ -197,9 +197,14 @@ pub struct Llm {
 
 impl Llm {
     /// Characters of transcript or notes per model call. Apple's model reads 4,096 tokens in total, prompt and
-    /// answer included; Groq's free tier allows a few thousand tokens per minute, so ~5k tokens per call.
+    /// answer (capped at apple::ANSWER) included; Groq's free tier allows a few thousand tokens per minute.
     pub fn window(&self) -> usize {
-        if self.provider == "apple" { 6_000 } else { 20_000 }
+        if self.provider == "apple" { 4_000 } else { 20_000 }
+    }
+
+    /// Whether this request fits in one call. Apple: counted in tokens. Groq: the transcript part in characters.
+    fn fits(&self, system: &str, user: &str, transcript: &str) -> bool {
+        if self.provider == "apple" { crate::apple::fits(system, user) } else { transcript.len() <= self.window() }
     }
 }
 
@@ -298,6 +303,9 @@ pub fn stream(llm: &Llm, system: &str, user: &str, mut on_token: impl FnMut(&str
             break;
         }
         let v: Value = serde_json::from_str(data).unwrap_or(Value::Null);
+        if let Some(e) = v["error"]["message"].as_str() {
+            anyhow::bail!("Groq stopped with an error: {}", e.chars().take(200).collect::<String>());
+        }
         if let Some(t) = v["choices"][0]["delta"]["content"].as_str() {
             all.push_str(t);
             if !on_token(t) {
@@ -305,6 +313,7 @@ pub fn stream(llm: &Llm, system: &str, user: &str, mut on_token: impl FnMut(&str
             }
         }
     }
+    anyhow::ensure!(!all.trim().is_empty(), "The model returned an empty answer. Try again.");
     Ok(all)
 }
 
@@ -318,10 +327,13 @@ pub fn write(llm: &Llm, input: &Input) -> anyhow::Result<String> {
                End each bullet with the reference numbers it is based on, like [S3]. Facts only.";
     let mut parts = lines;
     let mut transcript = parts.join("\n");
-    for _ in 0..3 {
-        if transcript.len() <= window {
+    for round in 0..4 {
+        if llm.fits(SYSTEM, &user_prompt(input, &transcript), &transcript) {
             break;
         }
+        // three rounds take an hour-long meeting down to a page; still too long means the own notes are huge
+        anyhow::ensure!(round < 3, "This meeting is too long for {}. Shorten your own notes or switch to Groq in Settings.",
+            if llm.provider == "apple" { "Apple's built-in model" } else { "one request" });
         let mut windows: Vec<String> = vec![String::new()];
         for l in &parts {
             if !windows.last().unwrap().is_empty() && windows.last().unwrap().len() + l.len() > window {
@@ -427,11 +439,33 @@ mod tests {
     }
 
     #[test]
+    fn groq_waits_on_the_free_limit_then_answers() {
+        use std::io::{Read, Write};
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://127.0.0.1:{}", l.local_addr().unwrap().port());
+        std::thread::spawn(move || {
+            for (i, s) in l.incoming().take(2).enumerate() {
+                let mut s = s.unwrap();
+                let _ = s.read(&mut [0u8; 65536]);
+                let (status, extra, body) = if i == 0 { (429, "retry-after: 1\r\n", r#"{"error":{"message":"rate limit"}}"#) } else { (200, "", r#"{"choices":[{"message":{"content":"ok"}}]}"#) };
+                let _ = s.write_all(format!("HTTP/1.1 {status} X\r\n{extra}content-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len()).as_bytes());
+            }
+        });
+        let started = std::time::Instant::now();
+        assert_eq!(complete(&groq(url), "s", "u").unwrap(), "ok");
+        assert!(started.elapsed() >= Duration::from_millis(900), "waited for retry-after");
+    }
+
+    #[test]
     fn streams_from_groq() {
         let url = fake_server("data: {\"choices\":[{\"delta\":{\"content\":\"Hel\"}}]}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"lo\"}}]}\n\ndata: [DONE]\n\n", 200);
         let mut got = Vec::new();
         let all = stream(&groq(url), "s", "u", |t| { got.push(t.to_string()); true }).unwrap();
         assert_eq!((all.as_str(), got), ("Hello", vec!["Hel".to_string(), "lo".to_string()]));
+        let url = fake_server("data: [DONE]\n\n", 200);
+        assert!(stream(&groq(url), "s", "u", |_| true).unwrap_err().to_string().contains("empty answer"));
+        let url = fake_server("data: {\"error\":{\"message\":\"over capacity\"}}\n\n", 200);
+        assert!(stream(&groq(url), "s", "u", |_| true).unwrap_err().to_string().contains("over capacity"));
     }
 
     #[test]
@@ -480,5 +514,69 @@ mod tests {
         assert!(md.contains("## Next steps"));
         assert!(md.contains("budget is tight [[own]]"));
         assert!(md.contains("[[seg:s"), "at least one checked source");
+    }
+
+    fn apple() -> Llm {
+        Llm { provider: "apple".into(), url: String::new(), model: String::new(), key: String::new() }
+    }
+
+    fn meeting(n: usize, lines: &[&str]) -> Vec<Segment> {
+        (0..n).map(|i| seg(&format!("s{i}"), if i % 2 == 0 { "me" } else { "them" }, lines[i % lines.len()])).collect()
+    }
+
+    const EN: [&str; 6] = ["We need to decide the release date for version two, and QA wants at least a week.", "The 20th of November works if QA finishes by the 15th.",
+        "Lena will send the new pricing page to the board by Thursday.", "Marketing wants a launch post on the same day as the release.",
+        "Tom drafts the launch post and shares it on Monday.", "Budget for ads stays at five thousand euros this quarter."];
+
+    /// Real-model probes for the 4,096-token limit. Run: cargo test -- --ignored apple_limits --nocapture --test-threads=1
+    #[test]
+    #[ignore]
+    fn apple_limits_own_notes_and_window() {
+        let t = tpl();
+        // own notes near the 2,000-character mark plus a full window of transcript
+        let own = (0..40).map(|i| format!("- point {i} about pricing, hiring and the launch")).collect::<Vec<_>>().join("\n");
+        let segs = meeting(70, &EN);
+        let input = Input { title: "Release planning", template: &t, own: &own, segments: &segs, context: "", length: "normal" };
+        let r = write(&apple(), &input);
+        println!("own {} chars, transcript {} chars -> {:?}", own.len(), segs.iter().map(|s| s.text.len()).sum::<usize>(), r.as_ref().map(|m| m.len()).map_err(|e| e.to_string()));
+        r.unwrap();
+    }
+
+    #[test]
+    #[ignore]
+    fn apple_limits_german() {
+        let t = tpl();
+        let de = ["Wir müssen den Veröffentlichungstermin für Version zwei festlegen, und die Qualitätssicherung braucht mindestens eine Woche.",
+            "Der zwanzigste November funktioniert, wenn die Qualitätssicherung bis zum fünfzehnten fertig ist.",
+            "Lena schickt die neue Preisseite bis Donnerstag an den Vorstand.", "Das Marketing möchte am Veröffentlichungstag einen Beitrag.",
+            "Tom entwirft den Beitrag und teilt ihn am Montag.", "Das Werbebudget bleibt in diesem Quartal bei fünftausend Euro."];
+        let segs = meeting(60, &de);
+        let input = Input { title: "Releaseplanung", template: &t, own: "", segments: &segs, context: "", length: "normal" };
+        let r = write(&apple(), &input);
+        println!("{:?}", r.as_ref().map_err(|e| e.to_string()));
+        let md = r.unwrap();
+        assert!(md.contains("[[seg:s"));
+    }
+
+    #[test]
+    #[ignore]
+    fn apple_limits_one_hour() {
+        let t = tpl();
+        let segs = meeting(600, &EN); // ~50k characters, about an hour of talk
+        let input = Input { title: "Long meeting", template: &t, own: "", segments: &segs, context: "", length: "normal" };
+        let started = std::time::Instant::now();
+        let r = write(&apple(), &input);
+        println!("{:.0} s {:?}", started.elapsed().as_secs_f64(), r.as_ref().map(|m| m.lines().count()).map_err(|e| e.to_string()));
+        r.unwrap();
+    }
+
+    #[test]
+    #[ignore]
+    fn apple_limits_stop_early() {
+        let started = std::time::Instant::now();
+        let mut n = 0;
+        let r = stream(&apple(), "Write long answers.", "Write a 500 word story about a lighthouse.", |_| { n += 1; n < 3 });
+        println!("stopped after {n} pieces in {:.1} s, {:?}", started.elapsed().as_secs_f64(), r.as_ref().map(|a| a.len()).map_err(|e| e.to_string()));
+        assert!(r.is_ok() && n == 3);
     }
 }

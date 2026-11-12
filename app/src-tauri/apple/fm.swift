@@ -23,11 +23,29 @@ private final class Box: @unchecked Sendable {
     var fail: String?
 }
 
-/// Blocks until the answer is complete. Calls `cb` with each new piece of text; `cb` returning false stops early.
+/// Tokens for instructions plus prompt, or -1 where the count is not available (before macOS 26.4).
+@_cdecl("fm_token_count")
+public func fm_token_count(_ system: UnsafePointer<CChar>, _ user: UnsafePointer<CChar>) -> Int32 {
+    guard #available(macOS 26.4, *) else { return -1 }
+    let sys = String(cString: system), prompt = String(cString: user)
+    let box = Box()
+    let done = DispatchSemaphore(value: 0)
+    var n: Int32 = -1
+    Task.detached {
+        let m = SystemLanguageModel.default
+        if let a = try? await m.tokenCount(for: Instructions(sys)), let b = try? await m.tokenCount(for: prompt) { n = Int32(a + b) }
+        _ = box
+        done.signal()
+    }
+    done.wait()
+    return n
+}
+
+/// Blocks until the answer is complete. `maxTokens` caps the answer (it counts toward the 4,096-token context). Calls `cb` with each new piece of text; `cb` returning false stops early.
 /// Returns the whole answer (free it with fm_free), or nil with `err` set.
 @_cdecl("fm_respond")
 public func fm_respond(_ system: UnsafePointer<CChar>, _ user: UnsafePointer<CChar>, _ cb: FmToken,
-                       _ ctx: UnsafeMutableRawPointer?, _ err: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>) -> UnsafeMutablePointer<CChar>? {
+                       _ ctx: UnsafeMutableRawPointer?, _ maxTokens: Int32, _ err: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>) -> UnsafeMutablePointer<CChar>? {
     guard #available(macOS 26.0, *) else {
         err.pointee = strdup("Apple's built-in model needs macOS 26 or later.")
         return nil
@@ -39,7 +57,7 @@ public func fm_respond(_ system: UnsafePointer<CChar>, _ user: UnsafePointer<CCh
         do {
             let session = LanguageModelSession(instructions: sys)
             var sent = 0
-            for try await snap in session.streamResponse(to: prompt, options: GenerationOptions(temperature: 0.2)) {
+            for try await snap in session.streamResponse(to: prompt, options: GenerationOptions(temperature: 0.2, maximumResponseTokens: maxTokens > 0 ? Int(maxTokens) : nil)) {
                 let text = snap.content
                 box.out = text
                 guard text.count > sent else { continue }
@@ -55,7 +73,8 @@ public func fm_respond(_ system: UnsafePointer<CChar>, _ user: UnsafePointer<CCh
             default: box.fail = "Apple's built-in model failed: \(e.localizedDescription)"
             }
         } catch {
-            box.fail = "Apple's built-in model failed: \(error.localizedDescription)"
+            let d = String(describing: error) + error.localizedDescription
+            box.fail = d.contains("context") ? "The text was too long for Apple's built-in model." : "Apple's built-in model failed: \(error.localizedDescription)"
         }
         done.signal()
     }

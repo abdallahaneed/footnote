@@ -6,7 +6,8 @@ use std::ffi::{c_char, c_void, CStr, CString};
 unsafe extern "C" {
     fn fm_status() -> i32;
     fn fm_respond(system: *const c_char, user: *const c_char, cb: extern "C" fn(*const c_char, *mut c_void) -> bool,
-        ctx: *mut c_void, err: *mut *mut c_char) -> *mut c_char;
+        ctx: *mut c_void, max_tokens: i32, err: *mut *mut c_char) -> *mut c_char;
+    fn fm_token_count(system: *const c_char, user: *const c_char) -> i32;
     fn fm_free(p: *mut c_char);
 }
 
@@ -36,6 +37,32 @@ fn why_not(status: &str) -> &'static str {
     }
 }
 
+/// The model's whole context, prompt and answer together.
+const CONTEXT: usize = 4_096;
+/// Longest answer allowed, so prompt plus answer always fit.
+pub const ANSWER: usize = 1_000;
+
+/// Whether instructions plus prompt leave room for an answer of ANSWER tokens. Exact from macOS 26.4; before that
+/// a cautious estimate of 3 characters per token (German and numbers take more tokens than English).
+pub fn fits(system: &str, user: &str) -> bool {
+    let tokens = token_count(system, user).unwrap_or((system.len() + user.len()) / 3);
+    tokens + ANSWER + 64 <= CONTEXT
+}
+
+#[cfg(target_os = "macos")]
+fn token_count(system: &str, user: &str) -> Option<usize> {
+    if status() != "available" {
+        return None;
+    }
+    let (sys, usr) = (CString::new(system.replace('\0', "")).ok()?, CString::new(user.replace('\0', "")).ok()?);
+    usize::try_from(unsafe { fm_token_count(sys.as_ptr(), usr.as_ptr()) }).ok()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn token_count(_: &str, _: &str) -> Option<usize> {
+    None
+}
+
 /// Streams the answer into `on_token` (returning false stops it) and returns the whole text.
 pub fn respond(system: &str, user: &str, mut on_token: impl FnMut(&str) -> bool) -> anyhow::Result<String> {
     let s = status();
@@ -51,7 +78,7 @@ fn respond_ffi<F: FnMut(&str) -> bool>(system: &str, user: &str, on_token: &mut 
     }
     let (sys, usr) = (CString::new(system.replace('\0', ""))?, CString::new(user.replace('\0', ""))?);
     let mut err: *mut c_char = std::ptr::null_mut();
-    let out = unsafe { fm_respond(sys.as_ptr(), usr.as_ptr(), tramp::<F>, on_token as *mut F as *mut c_void, &mut err) };
+    let out = unsafe { fm_respond(sys.as_ptr(), usr.as_ptr(), tramp::<F>, on_token as *mut F as *mut c_void, ANSWER as i32, &mut err) };
     let take = |p: *mut c_char| {
         let s = unsafe { CStr::from_ptr(p) }.to_string_lossy().into_owned();
         unsafe { fm_free(p) };
