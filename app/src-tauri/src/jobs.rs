@@ -25,6 +25,22 @@ impl Core {
 
 const MAX_ATTEMPTS: i64 = 4;
 
+/// Notes being written right now: (part, parts) of the model calls, for "Writing notes, part 3 of 9".
+static WRITING: Mutex<Option<std::collections::HashMap<String, (usize, usize)>>> = Mutex::new(None);
+
+pub fn writing(note_id: &str) -> Option<(usize, usize)> {
+    WRITING.lock().unwrap().as_ref()?.get(note_id).copied()
+}
+
+fn set_writing(note_id: &str, part: Option<(usize, usize)>) {
+    let mut w = WRITING.lock().unwrap();
+    let m = w.get_or_insert_with(Default::default);
+    match part {
+        Some(p) => { m.insert(note_id.to_string(), p); }
+        None => { m.remove(note_id); }
+    }
+}
+
 /// The loaded whisper model. Kept here, not on the worker's stack, so quitting can free it first: ggml's Metal
 /// backend aborts the process at exit if a model is still loaded (GGML_ASSERT in ggml-metal-device.m).
 static STT: Mutex<Option<Stt>> = Mutex::new(None);
@@ -391,7 +407,12 @@ fn write_notes(core: &Core, job: &Job) -> anyhow::Result<()> {
     };
     let live: Vec<_> = segs.into_iter().filter(|s| !s.deleted).collect();
     let input = enhance::Input { title: &title, template: &template, own: &own, segments: &live, context: &context, length: &length };
-    let md = enhance::write(&llm, &input)?;
+    let md = enhance::write_with(&llm, &input, &mut |p, n| {
+        set_writing(&note_id, Some((p, n)));
+        (core.notify)();
+    });
+    set_writing(&note_id, None);
+    let md = md?;
     let conn = core.db.lock().unwrap();
     let now = now_ms();
     let tx = conn.unchecked_transaction()?;
@@ -506,6 +527,20 @@ mod tests {
         let c = core.db.lock().unwrap();
         let left: Vec<String> = c.prepare("select id from transcript_segments").unwrap().query_map([], |r| r.get(0)).unwrap().map(Result::unwrap).collect();
         assert_eq!(left, ["t1"], "the written note lost its old transcript, the failed one kept it");
+    }
+
+    #[test]
+    fn writing_parts_show_on_the_note_only_while_writing() {
+        let c = mem();
+        let id = notes::create(&c, None).unwrap();
+        c.execute("update notes set pipeline_status = 'enhancing' where id = ?1", [&id]).unwrap();
+        set_writing(&id, Some((3, 9)));
+        let n = notes::note(&c, &id, |_| None, false).unwrap();
+        assert_eq!(n.writing, Some(notes::Writing { part: 3, parts: 9 }));
+        c.execute("update notes set pipeline_status = 'done' where id = ?1", [&id]).unwrap();
+        assert_eq!(notes::note(&c, &id, |_| None, false).unwrap().writing, None, "finished: no parts shown");
+        set_writing(&id, None);
+        assert_eq!(writing(&id), None);
     }
 
     #[test]

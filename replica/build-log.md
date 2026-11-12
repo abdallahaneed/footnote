@@ -43,3 +43,4 @@ Bigger than it looks:
 | S10 chat history | 2026-11-12 | done | Chats saved per set of notes, reopen with sources, continue, New chat, delete. Missing: follow-ups do not pass earlier turns to the model (Apple's 4,096-token limit makes this a budget question). |
 | S11/S12 recipes, F08 | 2026-11-12 | done | Recipes page, four built-ins of our own, editor with shortcut preview and scope, / menu in every Ask bar, scope and unknown-name errors from the core (migration 0008). Harder than expected: Enter in the / menu also sent the half-typed text, because React re-rendered between the two key handlers; fixed by respecting the handled key. |
 | S05 multi-select | 2026-11-12 | done | Shift-click and Shift-Space ranges, both ways. |
+| S09 writing progress | 2026-11-12 | done | "Writing notes, part 3 of 9" while a long meeting is condensed and written; one-call notes keep plain "Writing notes". Parts can grow if a second condensing round is needed. |

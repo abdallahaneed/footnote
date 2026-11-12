@@ -28,6 +28,8 @@ export type Note = {
   folderIds: string[]; deletedAt?: number;
   // set when recording stopped on its own
   stopReason?: "silence" | "call_ended";
+  // while notes are written in several model calls
+  writing?: { part: number; parts: number };
 };
 
 export type Folder = { id: string; name: string; description: string; icon?: string | null };

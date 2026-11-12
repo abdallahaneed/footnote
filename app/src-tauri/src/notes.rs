@@ -36,9 +36,18 @@ pub struct Note {
     pub folder_ids: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deleted_at: Option<i64>,
+    /// While notes are written in several model calls: which one is running.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub writing: Option<Writing>,
     /// Set when recording stopped on its own: "silence" or "call_ended".
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_reason: Option<String>,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct Writing {
+    pub part: usize,
+    pub parts: usize,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -140,6 +149,7 @@ pub fn note(conn: &Connection, id: &str, live: impl Fn(&str) -> LiveInfo, with_g
         .context("This note no longer exists.")?;
     let (id, title, event, created, updated, own, template, status, error, md, deleted, stop_reason) = n;
     let live = live(&id);
+    let writing = if ui_status(&status) == "writing" { crate::jobs::writing(&id).map(|(part, parts)| Writing { part, parts }) } else { None };
     Ok(Note {
         attendees: attendees(conn, &id)?,
         folder_ids: folder_ids(conn, &id)?,
@@ -151,6 +161,7 @@ pub fn note(conn: &Connection, id: &str, live: impl Fn(&str) -> LiveInfo, with_g
         own_text: own_text(&own),
         id, title, calendar_event_id: event, created_at: created, updated_at: updated, template_id: template, error, deleted_at: deleted,
         stop_reason: if live.is_some() { None } else { stop_reason },
+        writing,
     })
 }
 

@@ -319,7 +319,14 @@ pub fn stream(llm: &Llm, system: &str, user: &str, mut on_token: impl FnMut(&str
 
 /// Writes the notes. Long meetings are condensed window by window first (map), keeping [S#] references,
 /// then written into the template (reduce). Condensing repeats until the result fits one window.
+#[cfg(test)]
 pub fn write(llm: &Llm, input: &Input) -> anyhow::Result<String> {
+    write_with(llm, input, &mut |_, _| {})
+}
+
+/// `write`, calling `on_part(part, parts)` before each model call, so the note can say "part 3 of 9". `parts` can
+/// grow when a long meeting needs a second round of condensing.
+pub fn write_with(llm: &Llm, input: &Input, on_part: &mut dyn FnMut(usize, usize)) -> anyhow::Result<String> {
     let (lines, ids) = numbered(input.segments);
     anyhow::ensure!(!lines.is_empty() || !input.own.trim().is_empty(), "Nothing to write up yet: there is no transcript and no notes of your own.");
     let window = llm.window();
@@ -327,6 +334,7 @@ pub fn write(llm: &Llm, input: &Input) -> anyhow::Result<String> {
                End each bullet with the reference numbers it is based on, like [S3]. Facts only.";
     let mut parts = lines;
     let mut transcript = parts.join("\n");
+    let mut done = 0;
     for round in 0..4 {
         if llm.fits(SYSTEM, &user_prompt(input, &transcript), &transcript) {
             break;
@@ -343,9 +351,11 @@ pub fn write(llm: &Llm, input: &Input) -> anyhow::Result<String> {
             w.push_str(l);
             w.push('\n');
         }
-        parts = windows.iter().map(|w| complete(llm, sys, w)).collect::<anyhow::Result<Vec<_>>>()?;
+        let total = done + windows.len() + 1;
+        parts = windows.iter().map(|w| { done += 1; on_part(done, total); complete(llm, sys, w) }).collect::<anyhow::Result<Vec<_>>>()?;
         transcript = parts.join("\n");
     }
+    on_part(done + 1, done + 1);
     let answer = complete(llm, SYSTEM, &user_prompt(input, &transcript))?;
     Ok(to_stored(&answer, input, &ids))
 }
@@ -489,8 +499,12 @@ mod tests {
                 let _ = s.write_all(format!("HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{reply}", reply.len()).as_bytes());
             }
         });
-        let md = write(&groq(url), &input).unwrap();
+        let mut seen = Vec::new();
+        let md = write_with(&groq(url), &input, &mut |p, n| seen.push((p, n))).unwrap();
         assert!(md.contains("[[seg:s0]]"));
+        let last = *seen.last().unwrap();
+        assert_eq!(last.0, last.1, "the last call is the last part");
+        assert!(seen.len() >= 4 && seen.windows(2).all(|w| w[1].0 == w[0].0 + 1), "parts count up one by one: {seen:?}");
         let n = calls.load(std::sync::atomic::Ordering::SeqCst);
         assert!(n >= 3, "condensed in windows, then written: {n} calls");
     }

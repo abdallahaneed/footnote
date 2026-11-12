@@ -32,6 +32,7 @@ export function stageOf(n: Note): Stage | undefined {
   switch (n.status) {
     case "draft": return undefined;
     case "transcribing": return { kind: "transcribing", pct: n.progress ?? 0 };
+    case "writing": return { kind: "writing", part: n.writing?.part, parts: n.writing?.parts };
     case "failed": return { kind: "failed", reason: n.error ?? "unknown error" };
     default: return { kind: n.status };
   }

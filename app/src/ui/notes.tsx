@@ -54,14 +54,14 @@ export function SidebarItem({ icon, label, count, depth = 0, selected, expanded,
 
 /* Processing status, fix #2: every note always shows where it is ---------------- */
 
-export type Stage = { kind: "recording" } | { kind: "saved" } | { kind: "transcribing"; pct: number } | { kind: "writing" } | { kind: "done" } | { kind: "failed"; reason: string };
+export type Stage = { kind: "recording" } | { kind: "saved" } | { kind: "transcribing"; pct: number } | { kind: "writing"; part?: number; parts?: number } | { kind: "done" } | { kind: "failed"; reason: string };
 
 function stageText(s: Stage) {
   switch (s.kind) {
     case "recording": return "Recording";
     case "saved": return "Audio saved";
     case "transcribing": return `Transcribing ${s.pct}%`;
-    case "writing": return "Writing notes";
+    case "writing": return s.parts && s.parts > 1 ? `Writing notes, part ${s.part} of ${s.parts}` : "Writing notes";
     case "done": return "Notes ready";
     case "failed": return "Failed";
   }

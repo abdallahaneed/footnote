@@ -179,8 +179,14 @@ function runPipeline(id: string) {
 function write(id: string) {
   const n = db.notes.find((x) => x.id === id);
   if (!n || n.status === "recording") return;
-  n.status = "writing"; n.progress = undefined;
+  n.status = "writing"; n.progress = undefined; n.writing = undefined;
   commit();
+  // ?writeparts=4: a long meeting written in 4 model calls, one every 400 ms
+  const parts = Number(new URLSearchParams(location.search).get("writeparts") ?? 1);
+  for (let p = 1; p <= parts && parts > 1; p++) setTimeout(() => {
+    const m = db.notes.find((x) => x.id === id);
+    if (m?.status === "writing") { m.writing = { part: p, parts }; commit(); }
+  }, (p - 1) * 400);
   setTimeout(() => {
     const m = db.notes.find((x) => x.id === id);
     if (!m || m.status !== "writing") return;
@@ -192,8 +198,9 @@ function write(id: string) {
     } else {
       m.generated = generate(templateOf(m), m.ownText, segs); m.status = "done";
     }
+    m.writing = undefined;
     touch(m);
-  }, 600);
+  }, parts > 1 ? parts * 400 + 200 : 600);
 }
 
 // Crash safety (fix #1): a note left mid-recording or mid-pipeline is finished from its saved segments on launch.

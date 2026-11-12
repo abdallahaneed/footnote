@@ -1070,3 +1070,22 @@ test("F14-E5 shift-click selects every note in between, shift-click again clears
   await box("Roadmap check-in").click({ modifiers: ["Shift"] }); // no earlier click: just this one
   await expect(page.getByText("1 selected")).toBeVisible();
 });
+
+/* S09 writing progress for long meetings */
+
+test("F02-E11 a note written in several parts says which part is running, then Notes ready", async ({ page }) => {
+  await open(page, "/note/n-vendor", "?writeparts=4");
+  await page.getByRole("alert").getByRole("button", { name: "Try again" }).click();
+  const chip = page.getByRole("status").filter({ hasText: /Writing notes, part \d of 4/ }).first();
+  await expect(chip).toBeVisible({ timeout: 5000 });
+  await expect(page.getByRole("status").filter({ hasText: "Writing notes, part 4 of 4" }).first()).toBeVisible({ timeout: 5000 });
+  await expect(page.getByText("Notes ready")).toBeVisible({ timeout: 5000 });
+  await expect(page.getByText(/part \d of 4/)).toHaveCount(0);
+});
+
+test("F02-E12 a short note says just Writing notes, without parts", async ({ page }) => {
+  await open(page, "/note/n-vendor");
+  await page.getByRole("alert").getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("status").filter({ hasText: /^Writing notes$/ }).first()).toBeVisible({ timeout: 5000 });
+  await expect(page.getByText(/part \d of/)).toHaveCount(0);
+});
