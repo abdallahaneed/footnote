@@ -48,11 +48,18 @@ export const calendarSourceSetEnabled = (id: string, enabled: boolean) => invoke
 
 // Tokens arrive over a channel. Stopping only stops showing them.
 // shortcut: the core keeps generating until the model finishes; add a chat_cancel command if that wastes time.
-export async function chatSend(q: { scopeIds: string[] | "all"; text: string }, onToken: (t: string) => void, signal?: AbortSignal) {
+export type ChatThread = { id: string; title: string; updatedAt: number; messages: number };
+export type ChatStored = { role: "user" | "assistant"; content: string; citations: { label: string; href: string }[]; failed: boolean };
+const scopeArg = (ids: string[] | "all") => (ids === "all" ? null : ids);
+export const chatThreads = (scopeIds: string[] | "all") => invoke<ChatThread[]>("chat_threads", { scopeIds: scopeArg(scopeIds) });
+export const chatThreadGet = (id: string) => invoke<ChatStored[]>("chat_thread_get", { id });
+export const chatThreadDelete = (id: string) => invoke<void>("chat_thread_delete", { id });
+
+export async function chatSend(q: { scopeIds: string[] | "all"; text: string; threadId?: string }, onToken: (t: string) => void, signal?: AbortSignal) {
   const ch = new Channel<string>();
   ch.onmessage = (t) => { if (!signal?.aborted) onToken(t); };
-  return invoke<{ citations: { label: string; href: string }[] }>("chat_send", {
-    scopeIds: q.scopeIds === "all" ? null : q.scopeIds, text: q.text, onToken: ch,
+  return invoke<{ citations: { label: string; href: string }[]; threadId: string }>("chat_send", {
+    scopeIds: q.scopeIds === "all" ? null : q.scopeIds, text: q.text, threadId: q.threadId ?? null, onToken: ch,
   });
 }
 

@@ -341,12 +341,14 @@ fn search_notes(st: State<St>, q: String) -> R<Vec<notes::SearchHit>> {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ChatResult {
     citations: Vec<chat::Citation>,
+    thread_id: String,
 }
 
 #[tauri::command(async)]
-fn chat_send(st: State<St>, scope_ids: Option<Vec<String>>, text: String, on_token: Channel<String>) -> R<ChatResult> {
+fn chat_send(st: State<St>, scope_ids: Option<Vec<String>>, text: String, thread_id: Option<String>, on_token: Channel<String>) -> R<ChatResult> {
     if let Some(ids) = &scope_ids {
         check_ids(ids)?;
     }
@@ -358,8 +360,33 @@ fn chat_send(st: State<St>, scope_ids: Option<Vec<String>>, text: String, on_tok
         let llm = jobs::llm(c)?;
         Ok((chat::context(c, scope_ids.as_deref(), &text, llm.window())?, llm))
     })?;
-    let citations = chat::answer(&llm, &ctx, &text, |t| on_token.send(t.to_string()).is_ok()).map_err(err)?;
-    Ok(ChatResult { citations })
+    if let Some(t) = &thread_id {
+        check_id(t)?;
+    }
+    let thread = write(&st, |c| {
+        let t = match thread_id {
+            Some(t) => t,
+            None => chat::thread_start(c, scope_ids.as_deref(), &text, &format!("{} {}", llm.provider, llm.model))?,
+        };
+        chat::add_message(c, &t, "user", &text, &[], "done")?;
+        Ok(t)
+    })?;
+    let mut said = String::new();
+    let result = chat::answer(&llm, &ctx, &text, |t| {
+        said.push_str(t);
+        on_token.send(t.to_string()).is_ok()
+    });
+    match result {
+        Ok(citations) => {
+            write(&st, |c| chat::add_message(c, &thread, "assistant", &said, &citations, "done"))?;
+            Ok(ChatResult { citations, thread_id: thread })
+        }
+        Err(e) => {
+            let msg = e.to_string();
+            let _ = write(&st, |c| chat::add_message(c, &thread, "assistant", &msg, &[], "failed"));
+            Err(msg)
+        }
+    }
 }
 
 /* Settings ----------------------------------------------------------------------------------------- */
@@ -385,6 +412,26 @@ struct Settings {
     theme: String,
     /// None = keep transcripts until the note is deleted.
     transcript_retention_days: Option<i64>,
+}
+
+#[tauri::command(async)]
+fn chat_threads(st: State<St>, scope_ids: Option<Vec<String>>) -> R<Vec<chat::Thread>> {
+    if let Some(ids) = &scope_ids {
+        check_ids(ids)?;
+    }
+    read(&st, |c| chat::threads(c, scope_ids.as_deref()))
+}
+
+#[tauri::command(async)]
+fn chat_thread_get(st: State<St>, id: String) -> R<Vec<chat::Message>> {
+    check_id(&id)?;
+    read(&st, |c| chat::messages(c, &id))
+}
+
+#[tauri::command(async)]
+fn chat_thread_delete(st: State<St>, id: String) -> R<()> {
+    check_id(&id)?;
+    write(&st, |c| chat::delete_thread(c, &id))
 }
 
 #[tauri::command(async)]
@@ -646,7 +693,7 @@ pub fn run() {
             templates_list, template_save, template_delete,
             folders_tree, folder_save, folder_delete, notes_add_to_folder, notes_remove_from_folder,
             note_trash, note_restore, note_delete_forever,
-            note_copy_markdown, note_email_draft, search, chat_send,
+            note_copy_markdown, note_email_draft, search, chat_send, chat_threads, chat_thread_get, chat_thread_delete,
             settings_get, settings_update, mic_permission, permissions_get, permission_request, notes_export,
             meeting_take_notes, meeting_dismiss,
         ])

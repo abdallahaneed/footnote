@@ -394,15 +394,36 @@ function answer(scopeIds: string[] | "all", text: string): { text: string; citat
   return { text: ["From your notes:", ...hits.map(({ n, s }) => `- "${s.text}" (${titleOf(n)}, ${clock(s.startMs)})`)].join("\n"), citations: cite(hits.map((h) => h.n)) };
 }
 
+// History (S10), same rules as chat.rs: one list of chats per exact set of notes.
+type Stored = { role: "user" | "assistant"; content: string; citations: Citation[]; failed: boolean };
+type Thread = { id: string; key: string; title: string; updatedAt: number; msgs: Stored[] };
+let threads: Thread[] = [];
+const keyOf = (ids: string[] | "all") => (ids === "all" ? "all" : JSON.stringify([...ids].sort()));
+export const chatThreads = (scopeIds: string[] | "all") => call("chat_threads", () =>
+  threads.filter((t) => t.key === keyOf(scopeIds)).sort((a, b) => b.updatedAt - a.updatedAt)
+    .map((t) => ({ id: t.id, title: t.title, updatedAt: t.updatedAt, messages: t.msgs.length })));
+export const chatThreadGet = (id: string) => call("chat_thread_get", () => threads.find((t) => t.id === id)?.msgs ?? []);
+export const chatThreadDelete = (id: string) => call("chat_thread_delete", () => { threads = threads.filter((t) => t.id !== id); commit(); });
+
 // Streams the answer word by word, like the chat:token events will.
-export async function chatSend(q: { scopeIds: string[] | "all"; text: string }, onToken: (t: string) => void, signal?: AbortSignal) {
-  const a = await call("chat_send", () => answer(q.scopeIds, q.text));
+export async function chatSend(q: { scopeIds: string[] | "all"; text: string; threadId?: string }, onToken: (t: string) => void, signal?: AbortSignal) {
+  const { a, t } = await call("chat_send", () => {
+    let t = q.threadId ? threads.find((x) => x.id === q.threadId) : undefined;
+    if (q.threadId && !t) throw new Error("This chat was deleted.");
+    if (!t) { t = { id: uid(), key: keyOf(q.scopeIds), title: q.text.trim().replace(/\s+/g, " ").slice(0, 80), updatedAt: Date.now(), msgs: [] }; threads.push(t); }
+    t.msgs.push({ role: "user", content: q.text, citations: [], failed: false });
+    const a = answer(q.scopeIds, q.text);
+    t.msgs.push({ role: "assistant", content: a.text, citations: a.citations, failed: false });
+    t.updatedAt = Date.now();
+    commit();
+    return { a, t: t.id };
+  });
   for (const w of a.text.split(/(\s+)/)) {
     if (signal?.aborted) break;
     onToken(w);
     await wait(15);
   }
-  return { citations: a.citations };
+  return { citations: a.citations, threadId: t };
 }
 
 /* Settings (S28), same checks as settings_update ------------------------------ */

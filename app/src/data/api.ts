@@ -13,7 +13,7 @@ export const {
   calendarUpcoming, noteCreate, noteOpenForEvent, notesList, noteGet, noteUpdateOwn, recordingStart, recordingStop, generateNotes,
   transcriptDeleteSegment, transcriptCopyAll, transcriptRetry, templatesList, templateSave, templateDelete, foldersTree, folderSave,
   folderDelete, notesAddToFolder, notesRemoveFromFolder, noteTrash, noteRestore, noteDeleteForever, noteCopyMarkdown, noteEmailDraft,
-  searchIndex, searchNotes, chatSend, calendarSourcesList, calendarAddSource, calendarSourceDelete, calendarSourceSetEnabled,
+  searchIndex, searchNotes, chatSend, chatThreads, chatThreadGet, chatThreadDelete, calendarSourcesList, calendarAddSource, calendarSourceDelete, calendarSourceSetEnabled,
   settingsGet, settingsUpdate, groqKeySet, permissionsGet, permissionRequest, notesExport, meetingTakeNotes, meetingDismiss,
 } = api;
 

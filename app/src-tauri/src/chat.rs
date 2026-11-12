@@ -5,7 +5,7 @@ use crate::notes::{self, own_text, title_of};
 use rusqlite::{params_from_iter, Connection};
 use serde::Serialize;
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 pub struct Citation {
     pub label: String,
     pub href: String,
@@ -92,9 +92,115 @@ pub fn answer(llm: &crate::enhance::Llm, ctx: &Context, question: &str, on_token
     Ok(cited)
 }
 
+/* History (S10): one thread per conversation, kept per scope ------------------------------------------ */
+
+/// ("all", "[]"), ("note", [id]) or ("selection", sorted ids): the same notes always find the same chats.
+fn scope_key(scope: Option<&[String]>) -> (&'static str, String) {
+    match scope {
+        None => ("all", "[]".into()),
+        Some(ids) => {
+            let mut ids = ids.to_vec();
+            ids.sort();
+            (if ids.len() == 1 { "note" } else { "selection" }, serde_json::to_string(&ids).unwrap_or_else(|_| "[]".into()))
+        }
+    }
+}
+
+pub fn thread_start(conn: &Connection, scope: Option<&[String]>, question: &str, model: &str) -> anyhow::Result<String> {
+    let (kind, ids) = scope_key(scope);
+    let id = crate::db::uid();
+    let title: String = question.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(80).collect();
+    let now = crate::db::now_ms();
+    conn.execute(
+        "insert into chat_threads (id, scope_type, scope_ids, title, model, created_at, updated_at) values (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
+        rusqlite::params![id, kind, ids, title, model, now],
+    )?;
+    Ok(id)
+}
+
+pub fn add_message(conn: &Connection, thread: &str, role: &str, content: &str, citations: &[Citation], status: &str) -> anyhow::Result<()> {
+    let now = crate::db::now_ms();
+    let n = conn.execute("update chat_threads set updated_at = ?2 where id = ?1", rusqlite::params![thread, now])?;
+    anyhow::ensure!(n == 1, "This chat was deleted.");
+    conn.execute(
+        "insert into chat_messages (id, thread_id, role, content, citations, status, created_at) values (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        rusqlite::params![crate::db::uid(), thread, role, content, serde_json::to_string(citations)?, status, now],
+    )?;
+    Ok(())
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Thread {
+    pub id: String,
+    pub title: String,
+    pub updated_at: i64,
+    pub messages: i64,
+}
+
+/// Chats for exactly these notes, newest first.
+pub fn threads(conn: &Connection, scope: Option<&[String]>) -> anyhow::Result<Vec<Thread>> {
+    let (kind, ids) = scope_key(scope);
+    let mut st = conn.prepare(
+        "select t.id, t.title, t.updated_at, (select count(*) from chat_messages m where m.thread_id = t.id)
+         from chat_threads t where t.scope_type = ?1 and t.scope_ids = ?2 order by t.updated_at desc limit 50",
+    )?;
+    let rows = st.query_map(rusqlite::params![kind, ids], |r| Ok(Thread { id: r.get(0)?, title: r.get(1)?, updated_at: r.get(2)?, messages: r.get(3)? }))?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Message {
+    pub role: String,
+    pub content: String,
+    pub citations: Vec<Citation>,
+    pub failed: bool,
+}
+
+pub fn messages(conn: &Connection, thread: &str) -> anyhow::Result<Vec<Message>> {
+    let mut st = conn.prepare("select role, content, citations, status from chat_messages where thread_id = ?1 order by created_at, rowid")?;
+    let rows = st.query_map([thread], |r| {
+        let (c, s): (String, String) = (r.get(2)?, r.get(3)?);
+        Ok(Message { role: r.get(0)?, content: r.get(1)?, citations: serde_json::from_str(&c).unwrap_or_default(), failed: s == "failed" })
+    })?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
+pub fn delete_thread(conn: &Connection, id: &str) -> anyhow::Result<()> {
+    conn.execute("delete from chat_threads where id = ?1", [id])?; // messages go with it (on delete cascade)
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn history_is_kept_per_scope_and_deletes_cleanly() {
+        let c = crate::db::mem();
+        let (a, b) = ("n-a".to_string(), "n-b".to_string());
+        let t = thread_start(&c, Some(&[a.clone()]), "  What did   we decide about pricing?  ", "apple").unwrap();
+        add_message(&c, &t, "user", "What did we decide about pricing?", &[], "done").unwrap();
+        let cite = vec![Citation { label: "Roadmap".into(), href: "#/note/n-a".into() }];
+        add_message(&c, &t, "assistant", "Price stays.", &cite, "done").unwrap();
+        let both = thread_start(&c, Some(&[b.clone(), a.clone()]), "x", "apple").unwrap();
+        thread_start(&c, None, "everything", "apple").unwrap();
+
+        let here = threads(&c, Some(&[a.clone()])).unwrap();
+        assert_eq!((here.len(), here[0].title.as_str(), here[0].messages), (1, "What did we decide about pricing?", 2));
+        assert_eq!(threads(&c, Some(&[a.clone(), b.clone()])).unwrap()[0].id, both, "same notes in another order: same chats");
+        assert_eq!(threads(&c, None).unwrap().len(), 1);
+        let m = messages(&c, &t).unwrap();
+        assert_eq!((m[1].content.as_str(), m[1].citations.clone(), m[1].failed), ("Price stays.", cite, false));
+
+        delete_thread(&c, &t).unwrap();
+        assert!(threads(&c, Some(&[a.clone()])).unwrap().is_empty());
+        assert_eq!(c.query_row("select count(*) from chat_messages", [], |r| r.get::<_, i64>(0)).unwrap(), 0, "messages deleted too");
+        assert!(add_message(&c, &t, "user", "late", &[], "done").unwrap_err().to_string().contains("deleted"));
+        let long = thread_start(&c, None, &"word ".repeat(40), "m").unwrap();
+        assert!(threads(&c, None).unwrap().iter().find(|t| t.id == long).unwrap().title.chars().count() <= 80);
+    }
 
     #[test]
     fn picks_matching_notes() {

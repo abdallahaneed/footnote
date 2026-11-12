@@ -915,3 +915,57 @@ test("S28-E10 notes context over 2,000 characters says why and does not save", a
   await page.getByLabel("What your notes should know").fill("short again");
   await expect(page.getByText("Saved.")).toBeVisible();
 });
+
+/* S10 chat history */
+
+test("F06-E5 a chat is kept: close, reopen, continue it, start a new one, delete it", async ({ page }) => {
+  await open(page, "/");
+  await page.getByLabel("Ask about your notes").fill("List the action items");
+  await page.getByLabel("Ask about your notes").press("Enter");
+  let panel = page.getByRole("complementary", { name: "Ask" });
+  await expect(panel.getByText("Action items:")).toBeVisible();
+  await panel.getByRole("button", { name: "Close ask" }).click();
+
+  await page.getByLabel("Ask about your notes").fill("zebra crossing");
+  await page.getByLabel("Ask about your notes").press("Enter");
+  panel = page.getByRole("complementary", { name: "Ask" });
+  await expect(panel.getByText(/could not find anything/)).toBeVisible();
+  await panel.getByRole("button", { name: "New chat" }).click();
+  const earlier = panel.getByRole("region", { name: "Earlier chats here" });
+  await expect(earlier.getByRole("button", { name: /^List the action items/ })).toBeVisible();
+  await expect(earlier.getByRole("button", { name: /^zebra crossing/ })).toBeVisible();
+
+  await earlier.getByRole("button", { name: /^List the action items/ }).click();
+  await expect(panel.getByText("Action items:")).toBeVisible();
+  await expect(panel.getByRole("link", { name: "Hiring sync" }).first()).toBeVisible(); // sources come back too
+  await panel.getByLabel("Ask about your notes").fill("Draft a follow-up email");
+  await panel.getByLabel("Ask about your notes").press("Enter");
+  await expect(panel.getByText(/Subject: Notes from/)).toBeVisible();
+  await panel.getByRole("button", { name: "New chat" }).click();
+  await expect(earlier.getByRole("listitem")).toHaveCount(2); // the follow-up went into the same chat
+
+  await earlier.getByRole("button", { name: "Delete chat: zebra crossing" }).click();
+  await expect(panel.getByRole("status").filter({ hasText: 'Deleted "zebra crossing".' })).toBeVisible();
+  await expect(earlier.getByRole("listitem")).toHaveCount(1);
+  const axe = await new AxeBuilder({ page }).include("aside").analyze();
+  expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
+  await page.screenshot({ path: "../replica/clone-screens/S10-history.png" });
+});
+
+test("F06-E6 chats belong to their notes: a note's chat is not listed across all notes", async ({ page }) => {
+  await open(page, "/note/n-hiring");
+  await page.getByLabel("Ask about your notes").fill("What did we decide?");
+  await page.getByLabel("Ask about your notes").press("Enter");
+  const panel = page.getByRole("complementary", { name: "Ask" });
+  await expect(panel.getByRole("button", { name: "New chat" })).toBeVisible({ timeout: 5000 });
+  await panel.getByRole("button", { name: "New chat" }).click();
+  await expect(panel.getByRole("region", { name: "Earlier chats here" }).getByRole("listitem")).toHaveCount(1);
+  await panel.getByRole("button", { name: "Close ask" }).click();
+  await page.evaluate(() => { location.hash = "#/"; }); // same page, so the fake keeps its chats
+  await page.getByLabel("Ask about your notes").fill("anything");
+  await page.getByLabel("Ask about your notes").press("Enter");
+  const all = page.getByRole("complementary", { name: "Ask" });
+  await all.getByRole("button", { name: "New chat" }).click();
+  await expect(all.getByRole("region", { name: "Earlier chats here" }).getByRole("button", { name: /^anything/ })).toBeVisible();
+  await expect(all.getByRole("region", { name: "Earlier chats here" }).getByRole("button", { name: /^What did we decide/ })).toHaveCount(0);
+});
