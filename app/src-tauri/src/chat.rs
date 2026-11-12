@@ -16,8 +16,6 @@ pub struct Context {
     pub notes: Vec<(String, String)>, // (id, title), [N1] is notes[0]
 }
 
-/// Characters of notes the model gets (~6k tokens, fits an 8k context with the answer).
-const BUDGET: usize = 24_000;
 const STOP: &[&str] = &["what", "when", "with", "that", "this", "have", "about", "does", "there", "from", "they", "were", "which", "would",
     "should", "could", "your", "notes", "meeting", "meetings", "tell", "please", "the", "and", "did", "who", "how", "was"];
 
@@ -28,7 +26,8 @@ fn words(q: &str) -> Vec<String> {
 /// Picks what the model reads. One note: all of it. Many: the notes that match the question best, with their
 /// written-up notes and the transcript lines that match.
 // shortcut: keyword matching; the embeddings in `chunks` come with the embed job.
-pub fn context(conn: &Connection, scope: Option<&[String]>, question: &str) -> anyhow::Result<Context> {
+/// `budget` is how many characters of notes the model gets (Llm::window).
+pub fn context(conn: &Connection, scope: Option<&[String]>, question: &str, budget: usize) -> anyhow::Result<Context> {
     let ids: Vec<String> = match scope {
         Some(ids) => {
             let marks = vec!["?"; ids.len()].join(",");
@@ -63,7 +62,7 @@ pub fn context(conn: &Connection, scope: Option<&[String]>, question: &str) -> a
     }
     let (mut text, mut used) = (String::new(), Vec::new());
     for (_, id, title, body) in scored.into_iter().take(8) {
-        let room = BUDGET.saturating_sub(text.len());
+        let room = budget.saturating_sub(text.len());
         if room < 500 {
             break;
         }
@@ -104,16 +103,16 @@ mod tests {
         let b = notes::create(&c, None).unwrap();
         notes::update_own(&c, &a, Some("Hiring sync"), Some("second candidate strongest"), None).unwrap();
         notes::update_own(&c, &b, Some("Roadmap"), Some("export slipped"), None).unwrap();
-        let ctx = context(&c, None, "What did we say about the candidate?").unwrap();
+        let ctx = context(&c, None, "What did we say about the candidate?", 20_000).unwrap();
         assert_eq!(ctx.notes.iter().map(|n| n.1.as_str()).collect::<Vec<_>>(), vec!["Hiring sync"]);
         assert!(ctx.text.starts_with("[N1]\nTitle: Hiring sync"));
-        let all = context(&c, None, "list the action items").unwrap();
+        let all = context(&c, None, "list the action items", 20_000).unwrap();
         assert_eq!(all.notes.len(), 2, "no keyword match: newest notes");
-        let scoped = context(&c, Some(&[b.clone()]), "anything").unwrap();
+        let scoped = context(&c, Some(&[b.clone()]), "anything", 20_000).unwrap();
         assert_eq!(scoped.notes[0].0, b);
-        let none = context(&c, Some(&[]), "x").unwrap();
+        let none = context(&c, Some(&[]), "x", 6_000).unwrap();
         let mut said = String::new();
-        let llm = crate::enhance::Llm { provider: "ollama".into(), url: "http://127.0.0.1:9".into(), model: "m".into() };
+        let llm = crate::enhance::Llm { provider: "groq".into(), url: "http://127.0.0.1:9".into(), model: "m".into(), key: "k".into() };
         assert!(answer(&llm, &none, "x", |t| { said.push_str(t); true }).unwrap().is_empty());
         assert!(said.contains("no notes"));
     }

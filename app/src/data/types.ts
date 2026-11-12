@@ -31,7 +31,9 @@ export type DB = { events: CalendarEvent[]; notes: Note[]; segments: Segment[]; 
 
 // Mirrors the settings row (Rust lib.rs Settings).
 export type Settings = {
-  llmProvider: "ollama" | "openai_compatible" | "none"; llmUrl: string; llmModel: string;
+  llmProvider: "apple" | "groq" | "none"; llmModel: string;
+  // read-only, filled by settings_get
+  appleStatus?: "available" | "not_eligible" | "not_enabled" | "not_ready" | "old_macos" | "unavailable"; groqKeySaved?: boolean;
   summaryLength: "short" | "normal" | "detailed";
   audioRetention: "delete_after_transcript" | "keep_7d" | "keep_30d" | "keep_forever";
   markdownMirrorDir?: string; userName?: string; userRole?: string; userContext?: string;

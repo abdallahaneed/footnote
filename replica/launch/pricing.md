@@ -1,7 +1,7 @@
 # Pricing: Footnote
 
 Date: 2026-11-08
-Decision: free for version 1. No account, no trial, no tiers, no Stripe. Footnote runs on the user's own Mac (local speech-to-text, a local model through Ollama, SQLite), so a user costs nothing to serve. The matrix already records this (features.csv, "Billing and plans: skip, free tool").
+Decision: free for version 1. No account, no trial, no tiers, no Stripe. Footnote runs on the user's own Mac (local speech-to-text, Apple's built-in model or the user's own free Groq key, SQLite), so a user costs nothing to serve. The matrix already records this (features.csv, "Billing and plans: skip, free tool").
 
 ## What the market charges
 
@@ -26,7 +26,7 @@ From replica/feedback.md (253 reviews, mostly the iOS App Store; see fixes.md fo
 1. No paywall, no history window: every note stays, as long as it is on your disk. Answers themes 1 and 2.
 2. Nothing to cancel: no subscription, no renewal, no per-seat jump. Answers theme 3 by having no billing at all.
 3. Export is free and keeps formatting: one Markdown file per note (Settings > Export all notes). Answers item 4.
-4. Honest about the cost to the user instead: Footnote needs Ollama and a model download (a few GB) and uses the Mac's own processor. The landing page FAQ says so.
+4. Honest about the cost to the user instead: on-device notes need macOS 26 with Apple Intelligence; otherwise the user makes a free Groq key, and the transcript then goes to Groq. The landing page FAQ says so.
 
 ## If a paid tier comes later
 

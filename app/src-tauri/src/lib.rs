@@ -1,5 +1,6 @@
 //! Tauri commands. Names and shapes match app/src/data/api.ts. Every command validates its input here,
 //! because the webview is a trust boundary.
+mod apple;
 mod calendar;
 mod capture;
 mod chat;
@@ -345,7 +346,10 @@ fn chat_send(st: State<St>, scope_ids: Option<Vec<String>>, text: String, on_tok
     if text.is_empty() || text.chars().count() > 4000 {
         return Err("Ask a question of up to 4000 characters.".into());
     }
-    let (ctx, llm) = read(&st, |c| Ok((chat::context(c, scope_ids.as_deref(), &text)?, jobs::llm(c)?)))?;
+    let (ctx, llm) = read(&st, |c| {
+        let llm = jobs::llm(c)?;
+        Ok((chat::context(c, scope_ids.as_deref(), &text, llm.window())?, llm))
+    })?;
     let citations = chat::answer(&llm, &ctx, &text, |t| on_token.send(t.to_string()).is_ok()).map_err(err)?;
     Ok(ChatResult { citations })
 }
@@ -356,8 +360,12 @@ fn chat_send(st: State<St>, scope_ids: Option<Vec<String>>, text: String, on_tok
 #[serde(rename_all = "camelCase")]
 struct Settings {
     llm_provider: String,
-    llm_url: String,
     llm_model: String,
+    /// Read-only, filled by settings_get: whether Apple's model can run here, and whether a Groq key is saved.
+    #[serde(default)]
+    apple_status: String,
+    #[serde(default)]
+    groq_key_saved: bool,
     summary_length: String,
     audio_retention: String,
     markdown_mirror_dir: Option<String>,
@@ -372,13 +380,14 @@ struct Settings {
 fn settings_get(st: State<St>) -> R<Settings> {
     read(&st, |c| {
         Ok(c.query_row(
-            "select llm_provider, llm_url, llm_model, summary_length, audio_retention, markdown_mirror_dir, user_name, user_role, user_context, jargon, languages from settings",
+            "select llm_provider, llm_model, summary_length, audio_retention, markdown_mirror_dir, user_name, user_role, user_context, jargon, languages from settings",
             [],
             |r| {
-                let (j, l): (String, String) = (r.get(9)?, r.get(10)?);
+                let (j, l): (String, String) = (r.get(8)?, r.get(9)?);
                 Ok(Settings {
-                    llm_provider: r.get(0)?, llm_url: r.get(1)?, llm_model: r.get(2)?, summary_length: r.get(3)?, audio_retention: r.get(4)?,
-                    markdown_mirror_dir: r.get(5)?, user_name: r.get(6)?, user_role: r.get(7)?, user_context: r.get(8)?,
+                    llm_provider: r.get(0)?, llm_model: r.get(1)?, summary_length: r.get(2)?, audio_retention: r.get(3)?,
+                    markdown_mirror_dir: r.get(4)?, user_name: r.get(5)?, user_role: r.get(6)?, user_context: r.get(7)?,
+                    apple_status: apple::status().into(), groq_key_saved: enhance::groq_key().is_some_and(|k| !k.is_empty()),
                     jargon: serde_json::from_str(&j).unwrap_or_default(), languages: serde_json::from_str(&l).unwrap_or_default(),
                 })
             },
@@ -389,9 +398,6 @@ fn settings_get(st: State<St>) -> R<Settings> {
 #[tauri::command(async)]
 fn settings_update(st: State<St>, s: Settings) -> R<()> {
     let short = |v: &Option<String>, n: usize| v.as_ref().is_none_or(|x| x.chars().count() <= n);
-    if !(s.llm_url.starts_with("http://") || s.llm_url.starts_with("https://")) || s.llm_url.len() > 500 {
-        return Err("The model address must start with http:// or https://.".into());
-    }
     if s.llm_model.trim().is_empty() {
         return Err("Enter a model name.".into());
     }
@@ -412,13 +418,23 @@ fn settings_update(st: State<St>, s: Settings) -> R<()> {
     // provider, length and retention values are checked by the table's check constraints
     write(&st, |c| {
         c.execute(
-            "update settings set llm_provider = ?1, llm_url = ?2, llm_model = ?3, summary_length = ?4, audio_retention = ?5, markdown_mirror_dir = ?6,
-               user_name = ?7, user_role = ?8, user_context = ?9, jargon = ?10, languages = ?11, updated_at = ?12 where id = 1",
-            params![s.llm_provider, s.llm_url.trim(), s.llm_model.trim(), s.summary_length, s.audio_retention, s.markdown_mirror_dir,
+            "update settings set llm_provider = ?1, llm_model = ?2, summary_length = ?3, audio_retention = ?4, markdown_mirror_dir = ?5,
+               user_name = ?6, user_role = ?7, user_context = ?8, jargon = ?9, languages = ?10, updated_at = ?11 where id = 1",
+            params![s.llm_provider, s.llm_model.trim(), s.summary_length, s.audio_retention, s.markdown_mirror_dir,
                 s.user_name, s.user_role, s.user_context, serde_json::to_string(&s.jargon)?, serde_json::to_string(&s.languages)?, now_ms()],
         )?;
         Ok(())
     })
+}
+
+/// Saves the Groq key in the Keychain; an empty key removes it.
+#[tauri::command(async)]
+fn groq_key_set(key: String) -> R<()> {
+    let key = key.trim();
+    if !key.is_empty() && (key.len() > 200 || key.chars().any(|c| c.is_whitespace() || c.is_control())) {
+        return Err("That does not look like a Groq API key. Copy it again from console.groq.com/keys.".into());
+    }
+    enhance::set_groq_key(key).map_err(err)
 }
 
 #[tauri::command(async)]
@@ -547,7 +563,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            search_notes,
+            search_notes, groq_key_set,
             calendar_upcoming, calendar_sources_list, calendar_add_source, calendar_source_delete,
             note_create, note_open_for_event, notes_list, note_get, note_update_own,
             recording_start, recording_stop, generate_notes,

@@ -1,7 +1,7 @@
 import type { GenLine, Segment, Template } from "./types";
 
 // Stand-in for the local LLM step (enhance job). Sorts transcript lines into the template's sections by keyword
-// and keeps each line's source segment. shortcut: keyword rules, replaced by the Ollama map-reduce in /replica-backend.
+// and keeps each line's source segment. shortcut: keyword rules, the desktop app uses the map-reduce in enhance.rs (Apple or Groq).
 export const COMMIT = /\b(i'll|i will|we'll|she'll|he'll|they'll|will (send|check|set|ask)|by (monday|tuesday|wednesday|thursday|friday))\b/i;
 const DECIDE = /\b(let's|agreed?|decided?|aiming|owns?|does)\b/i;
 const tidy = (t: string) => t.replace(/^(yes|good|ok(ay)?|mostly|so|well|agreed)[,.]?\s+/i, "").replace(/^\w/, (c) => c.toUpperCase());

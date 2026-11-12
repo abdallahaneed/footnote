@@ -101,7 +101,7 @@ test("keyboard only: start and stop a recording", async ({ page }) => {
 
 test("failed note shows why and recovers with Try again", async ({ page }) => {
   await open(page, "/note/n-vendor");
-  await expect(page.getByRole("alert")).toContainText("Ollama");
+  await expect(page.getByRole("alert")).toContainText("Could not reach Groq");
   await page.getByRole("alert").getByRole("button", { name: "Try again" }).click();
   await expect(page.getByText("Notes ready")).toBeVisible({ timeout: 5000 });
 });
@@ -110,7 +110,7 @@ test("failed generation stays visible (simulated model down)", async ({ page }) 
   await open(page, "/note/n-hiring", "?fail=enhance");
   await page.getByRole("combobox", { name: "Template" }).click();
   await page.getByRole("option", { name: "One-on-one" }).click();
-  await expect(page.getByRole("alert")).toContainText("did not answer", { timeout: 5000 });
+  await expect(page.getByRole("alert")).toContainText("Could not reach Groq", { timeout: 5000 });
   await expect(page.getByRole("status").filter({ hasText: "Failed" })).toBeVisible();
 });
 
@@ -279,26 +279,48 @@ test("S03 permissions: a denied permission points to System Settings", async ({ 
   await page.screenshot({ path: `${shots}/S03-denied.png` });
 });
 
+test("S28 Apple model not available: says why and points to Groq", async ({ page }) => {
+  await open(page, "/settings/preferences", "?apple=not_enabled");
+  await expect(page.getByText("Turn on Apple Intelligence in System Settings")).toBeVisible();
+  await page.getByRole("radio", { name: /Groq/ }).click();
+  await expect(page.getByLabel("Groq API key")).toBeVisible();
+  await expect(page.getByText("Turn on Apple Intelligence")).toHaveCount(0);
+  expect(await serious(page)).toEqual([]);
+  await page.screenshot({ path: `${shots}/S28-apple-off.png` });
+});
+
 test("S28 settings: save on their own, invalid input says why, export explains the browser limit", async ({ page }) => {
   await open(page, "/settings/preferences");
-  await page.getByLabel("Model address").fill("localhost:11434");
-  await expect(page.getByRole("alert")).toContainText("must start with http");
-  await page.getByLabel("Model address").fill("http://127.0.0.1:1234");
+  await expect(page.getByRole("radio", { name: /Built into your Mac/ })).toBeChecked();
+  await expect(page.getByLabel("Groq model")).toHaveCount(0);
+  await page.getByRole("radio", { name: /Groq/ }).click();
+  await page.getByLabel("Groq model").fill("");
+  await expect(page.getByRole("alert")).toContainText("Enter a model name");
+  await page.getByLabel("Groq model").fill("openai/gpt-oss-20b");
   await expect(page.getByText("Saved.")).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save key" })).toBeDisabled();
+  await page.getByLabel("Groq API key").fill("not a key");
+  await page.getByRole("button", { name: "Save key" }).click();
+  await expect(page.getByRole("alert")).toContainText("does not look like a Groq API key");
+  await page.getByLabel("Groq API key").fill("gsk_test123");
+  await page.getByLabel("Groq API key").press("Enter");
+  await expect(page.getByText("Groq key saved in your Keychain.")).toBeVisible();
+  await expect(page.getByLabel("Groq API key")).toHaveCount(0);
   await page.getByRole("radio", { name: /Keep for 7 days/ }).click();
   const words = page.getByLabel("Words to spell right");
   await words.fill("Kubernetes");
   await words.press("Enter");
   await page.getByRole("radio", { name: /Transcript only/ }).click();
-  await expect(page.getByLabel("Model address")).toHaveCount(0);
+  await expect(page.getByLabel("Groq model")).toHaveCount(0);
   await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Home" }).click();
   await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Settings" }).click();
   await expect(page.getByRole("radio", { name: /Transcript only/ })).toBeChecked();
   await expect(page.getByRole("radio", { name: /Keep for 7 days/ })).toBeChecked();
   await expect(page.getByRole("button", { name: "Remove Kubernetes" })).toBeVisible();
-  await page.getByRole("radio", { name: /Ollama/ }).click();
-  await expect(page.getByLabel("Model address")).toHaveValue("http://127.0.0.1:1234");
+  await page.getByRole("radio", { name: /Groq/ }).click();
+  await expect(page.getByLabel("Groq model")).toHaveValue("openai/gpt-oss-20b");
+  await expect(page.getByText("Groq key saved in your Keychain.")).toBeVisible();
   await page.getByRole("button", { name: "Export all notes" }).click();
   await expect(page.getByText(/notes would be exported/)).toBeVisible();
   expect(await serious(page)).toEqual([]);

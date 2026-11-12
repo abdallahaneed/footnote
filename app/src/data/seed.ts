@@ -80,7 +80,7 @@ export function seed(now: number): DB {
     ["them", "Our invoices go out on the first of each month."],
     ["me", "Can you send them as PDF to our finance inbox?"],
     ["them", "Yes, I'll set that up this week."],
-  ], "", [], { status: "failed", generated: undefined, error: "The local model did not answer. Check that Ollama is running, then try again." });
+  ], "", [], { status: "failed", generated: undefined, error: "Could not reach Groq. Check your internet connection, then try again." });
 
   const scratch = past("n-scratch", "Mic test", at(-9, 17), 1, [P.jonas], [["me", "Testing, one two."]], "", [], { deletedAt: now - 2 * DAY });
 

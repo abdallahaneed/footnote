@@ -21,8 +21,8 @@ The skill's default stack (Next.js, Postgres, Stripe, Vercel) is for hosted web 
 | system audio, macOS | Core Audio process tap (macOS 14.2+), ScreenCaptureKit audio fallback on 14.0-14.1 | Only official way to capture other apps' audio without a virtual driver. |
 | system audio, Windows | WASAPI loopback on the default render device (via cpal or the windows crate) | Official API, no driver install. |
 | speech to text | whisper-rs (Metal on macOS, CPU or Vulkan on Windows) | Already in Quietkey; free and local. |
-| LLM | Ollama on localhost by default; any OpenAI-compatible URL as opt-in | Matches Quietkey; user can point at LM Studio, a free Groq key or their own server. |
-| embeddings | Ollama nomic-embed-text | Local and free. |
+| LLM | Apple's built-in model (FoundationModels, macOS 26+) by default; Groq with the user's own free key as opt-in | Changed 2026-11-12 from Ollama: nothing to install or download, still free. Swift bridge in app/src-tauri/apple/fm.swift; Groq key in the Keychain. |
+| embeddings | not built; chat uses keyword retrieval | Ollama's embed model went with Ollama; Apple's NLEmbedding is the free on-device option if needed. |
 | calendar | macOS EventKit (objc2), ICS URL on both OSes; Google and Microsoft OAuth (PKCE, loopback redirect) as optional extras | No account required (fix #3); OAuth only when the user wants it. |
 | secrets | macOS Keychain (security-framework), Windows Credential Manager (keyring crate) | Tokens never sit in the database file. |
 | auth | none | Single local user. Access control is the OS user account. |
@@ -174,7 +174,7 @@ Retries: exponential backoff, 5 attempts, then status failed and the note shows 
 7. Time zones: store UTC ms everywhere; convert with the OS time zone only in the UI. ICS feeds carry TZID and recurrence rules, so use a real ICS parser and expand RRULE with DST-aware dates.
 8. Idempotency: dedupe_key on jobs; unique (integration_id, generation_id) on posts; calendar upserts by (source_id, provider_event_id, start_at).
 9. Races: recording_stop while a segment is being written; only the capture thread closes segments, the command sends a message to it. One writer connection for SQLite with WAL mode, readers on separate connections.
-10. Rate limits: Google Calendar and Microsoft Graph are generous at one user; back off on 429. Ollama is single-request; the worker runs LLM jobs one at a time.
+10. Rate limits: Google Calendar and Microsoft Graph are generous at one user; back off on 429. Groq's free tier allows a few thousand tokens a minute; on 429 the request waits for retry-after, up to 3 times. The worker runs LLM jobs one at a time.
 11. File sizes: 16 kHz mono 16-bit WAV is about 115 MB per hour for two channels. Retention defaults to 30 days; offer FLAC or Opus later if disk use is a complaint.
 12. Search: FTS5 handles full text; semantic search is the brute-force shortcut until it gets slow.
 13. Offline: everything works offline except OAuth calendars and integrations.

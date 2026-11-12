@@ -172,8 +172,8 @@ function write(id: string) {
     const m = db.notes.find((x) => x.id === id);
     if (!m || m.status !== "writing") return;
     const segs = segsOf(id).filter((s) => !s.deleted);
-    if (fail === "enhance") { // the enhance job (local model) fails, not the command
-      m.status = "failed"; m.error = "The local model did not answer. Check that Ollama is running, then try again.";
+    if (fail === "enhance") { // the enhance job (the model) fails, not the command
+      m.status = "failed"; m.error = "Could not reach Groq. Check your internet connection, then try again.";
     } else if (!segs.length && !m.ownText.trim()) {
       m.status = "failed"; m.error = "Nothing to write up yet: there is no transcript and no notes of your own.";
     } else {
@@ -348,7 +348,7 @@ export const searchNotes = (q: string) => call("search_notes", (): SearchHit[] =
   return [...hits.filter((h) => h.field === "title"), ...hits.filter((h) => h.field !== "title")].slice(0, 20);
 });
 
-/* Chat (local LLM stand-in) -------------------------------------------------- */
+/* Chat (model stand-in) -------------------------------------------------- */
 
 type Citation = { label: string; href: string };
 const STOP = new Set(["what", "when", "with", "that", "this", "have", "about", "does", "there", "from", "they", "were", "which", "would", "should", "could", "your", "notes", "meeting", "tell", "please"]);
@@ -395,17 +395,23 @@ export async function chatSend(q: { scopeIds: string[] | "all"; text: string }, 
 /* Settings (S28), same checks as settings_update ------------------------------ */
 
 let settings: Settings = {
-  llmProvider: "ollama", llmUrl: "http://localhost:11434", llmModel: "llama3.2:3b", summaryLength: "normal",
+  llmProvider: "apple", llmModel: "openai/gpt-oss-120b", summaryLength: "normal", groqKeySaved: false,
+  appleStatus: (new URLSearchParams(location.search).get("apple") ?? "available") as Settings["appleStatus"],
   audioRetention: "delete_after_transcript", jargon: [], languages: ["en"],
 };
 export const settingsGet = () => call("settings_get", () => settings);
 export const settingsUpdate = (s: Settings) => call("settings_update", () => {
-  if (!/^https?:\/\//.test(s.llmUrl) || s.llmUrl.length > 500) throw new Error("The model address must start with http:// or https://.");
   if (!s.llmModel.trim()) throw new Error("Enter a model name.");
   if (s.llmModel.length > 200) throw new Error("Keep the model name under 200 characters.");
   if (s.jargon.length > 30 || s.jargon.some((j) => j.length > 60)) throw new Error("Up to 30 words, each under 60 characters.");
-  settings = { ...s, llmUrl: s.llmUrl.trim(), llmModel: s.llmModel.trim() };
+  settings = { ...s, llmModel: s.llmModel.trim(), appleStatus: settings.appleStatus, groqKeySaved: settings.groqKeySaved };
   commit();
+});
+// The desktop app keeps the key in the Keychain; here only "is one saved" is kept.
+export const groqKeySet = (key: string) => call("groq_key_set", () => {
+  const k = key.trim();
+  if (k && (k.length > 200 || /\s/.test(k))) throw new Error("That does not look like a Groq API key. Copy it again from console.groq.com/keys.");
+  settings = { ...settings, groqKeySaved: !!k };
 });
 
 /* Permissions (S03). ?perm=denied or ?perm=undetermined shows those states in the browser. */

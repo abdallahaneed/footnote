@@ -182,7 +182,7 @@ fn next(conn: &Connection) -> rusqlite::Result<Option<Job>> {
 
 /// Errors that a retry will not fix.
 fn permanent(e: &str) -> bool {
-    e.contains("Nothing to write up") || e.contains("turned off") || e.contains("no longer exists") || e.contains("ollama pull")
+    e.contains("Nothing to write up") || e.contains("turned off") || e.contains("no longer exists") || e.contains("Settings")
 }
 
 pub fn spawn(core: Arc<Core>) {
@@ -325,7 +325,9 @@ pub fn same_words(a: &str, b: &str) -> bool {
 
 pub fn llm(conn: &Connection) -> rusqlite::Result<Llm> {
     conn.query_row("select llm_provider, llm_url, llm_model from settings where id = 1", [], |r| {
-        Ok(Llm { provider: r.get(0)?, url: r.get(1)?, model: r.get(2)? })
+        let provider: String = r.get(0)?;
+        let key = if provider == "groq" { enhance::groq_key().unwrap_or_default() } else { String::new() };
+        Ok(Llm { provider, url: r.get(1)?, model: r.get(2)?, key })
     })
 }
 
@@ -488,7 +490,7 @@ mod tests {
         assert!(retranscribe(&c, &id).unwrap_err().to_string().contains("already deleted"));
     }
     /// The whole path with real audio and real whisper: two channels -> 30 s segments on disk -> transcribe jobs ->
-    /// enhance job against a stand-in Ollama -> stored notes with checked sources. Needs `say` (macOS) and the
+    /// enhance job against a stand-in Groq -> stored notes with checked sources. Needs `say` (macOS) and the
     /// 60 MB model (copied from Quietkey's folder if there, else downloaded). Run: cargo test -- --ignored e2e
     #[cfg(debug_assertions)]
     #[test]
@@ -513,8 +515,9 @@ mod tests {
             std::env::set_var("MEETING_NOTES_TEST_SYSTEM_WAV", &them);
         }
         let conn = crate::db::open(&data.join("app.db")).unwrap();
-        let url = crate::enhance::fake_ollama(r###"{"message":{"content":"## Summary\n- Release planned for 20 November [S1]\n## Next steps\n- Send the pricing page to Lena by Friday [S2]"}}"###, 200);
-        conn.execute("update settings set llm_url = ?1, llm_model = 'test'", [url]).unwrap();
+        let url = crate::enhance::fake_server(r###"{"choices":[{"message":{"content":"## Summary\n- Release planned for 20 November [S1]\n## Next steps\n- Send the pricing page to Lena by Friday [S2]"}}]}"###, 200);
+        conn.execute("update settings set llm_provider = 'groq', llm_url = ?1, llm_model = 'test'", [url]).unwrap();
+        unsafe { std::env::set_var("MEETING_NOTES_TEST_GROQ_KEY", "test") };
         let id = notes::create(&conn, None).unwrap();
         let core = Arc::new(Core { db: Mutex::new(conn), data: data.clone(), notify: Box::new(|| {}) });
         let c2 = core.clone();

@@ -3,6 +3,7 @@ use std::path::Path;
 
 const MIGRATIONS: &[&str] = &[include_str!("../migrations/0001_init.sql"), include_str!("../migrations/0002_templates.sql"),
     include_str!("../migrations/0003_interviews.sql"), include_str!("../migrations/0004_search.sql"),
+    include_str!("../migrations/0005_models.sql"),
 ];
 
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {

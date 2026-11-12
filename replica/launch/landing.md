@@ -37,7 +37,7 @@ Free. No account, no trial, no subscription. pricing.md has the reasoning.
 
 ## 6. FAQ
 
-1. What do I need? A Mac with macOS 14 or later, and Ollama with a model installed (Footnote shows how). Expect a few GB for the speech and note models.
+1. What do I need? A Mac with macOS 14 or later. Notes are written by Apple's built-in model on macOS 26 with Apple Intelligence, so there is nothing else to install. On older Macs, or for faster notes, add your own free Groq key; the transcript is then sent to Groq. The speech model is about 60 MB and downloads on first use.
 2. Does anything leave my Mac? No. The only network use is reading your calendar link, if you add one, and downloading models when you choose to.
 3. Does it join the call as a bot? No. It listens to your Mac's microphone and sound output.
 4. Do I have to tell people? Yes, tell them you are taking notes. Recording rules depend on where you and they are.

@@ -234,9 +234,10 @@ test("S28-E1 unsaved settings are not lost silently when leaving", async ({ page
   await expect(page.getByRole("radio", { name: /Keep for 30 days/ })).toBeChecked();
 });
 
-test("S28-E2 Transcript only saves even if the hidden model address was invalid", async ({ page }) => {
+test("S28-E2 Transcript only saves even if the hidden Groq model name was left empty", async ({ page }) => {
   await open(page, "/settings/preferences");
-  await page.getByLabel("Model address").fill("nonsense");
+  await page.getByRole("radio", { name: /Groq/ }).click();
+  await page.getByLabel("Groq model").fill("");
   await page.getByRole("radio", { name: /Transcript only/ }).click();
   await expect(page.getByText("Saved.")).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
@@ -244,7 +245,8 @@ test("S28-E2 Transcript only saves even if the hidden model address was invalid"
 
 test("S28-E3 a 201-character model name gets a message about length", async ({ page }) => {
   await open(page, "/settings/preferences");
-  await page.getByLabel("Model name").fill("m".repeat(201));
+  await page.getByRole("radio", { name: /Groq/ }).click();
+  await page.getByLabel("Groq model").fill("m".repeat(201));
   await expect(page.getByRole("alert")).toContainText(/too long|characters/);
 });
 
@@ -308,13 +310,14 @@ test("S03-E2 Open System Settings in the browser preview does not break the page
 
 test("S28-E5 removing a word does not save the form behind your back", async ({ page }) => {
   await open(page, "/settings/preferences");
-  await page.getByLabel("Model address").fill("nonsense");
+  await page.getByRole("radio", { name: /Groq/ }).click();
+  await page.getByLabel("Groq model").fill("");
   const box = page.getByLabel("Words to spell right");
   await box.fill("Kafka");
   await box.press("Enter");
   await page.getByRole("button", { name: "Remove Kafka" }).click();
   await expect(page.getByRole("button", { name: "Remove Kafka" })).toHaveCount(0);
-  await expect(page.getByRole("alert")).toContainText("must start with http"); // the address error stays shown, nothing else breaks
+  await expect(page.getByRole("alert")).toContainText("Enter a model name"); // the model name error stays shown, nothing else breaks
 });
 
 /* S20 meeting pop-up (build b721afe) */

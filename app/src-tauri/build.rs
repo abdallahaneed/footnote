@@ -21,5 +21,24 @@ fn main() {
         }
         println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
     }
+    // Apple's on-device model: apple/fm.swift as a static library. FoundationModels is weak-linked so the app
+    // still opens on macOS 14 and 15 (fm_status then reports "macOS too old").
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        let out = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
+        let arch = match std::env::var("CARGO_CFG_TARGET_ARCH").unwrap().as_str() { "aarch64" => "arm64".to_string(), a => a.to_string() };
+        let ok = std::process::Command::new("xcrun")
+            .args(["swiftc", "-emit-library", "-static", "-parse-as-library", "-swift-version", "5", "-O", "-module-name", "fmbridge"])
+            .args(["-target", &format!("{arch}-apple-macos14.0"), "-Xfrontend", "-disable-autolink-framework", "-Xfrontend", "FoundationModels"])
+            .arg("apple/fm.swift")
+            .arg("-o")
+            .arg(out.join("libfmbridge.a"))
+            .status()
+            .expect("xcrun swiftc not found; install the Xcode Command Line Tools");
+        assert!(ok.success(), "swiftc failed on apple/fm.swift");
+        println!("cargo:rustc-link-search=native={}", out.display());
+        println!("cargo:rustc-link-lib=static=fmbridge");
+        println!("cargo:rustc-link-arg=-Wl,-weak_framework,FoundationModels");
+        println!("cargo:rerun-if-changed=apple/fm.swift");
+    }
     tauri_build::build()
 }

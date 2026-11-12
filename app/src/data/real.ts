@@ -57,6 +57,7 @@ export async function chatSend(q: { scopeIds: string[] | "all"; text: string }, 
 
 export const settingsGet = () => invoke<Settings>("settings_get");
 export const settingsUpdate = (s: Settings) => invoke<void>("settings_update", { s });
+export const groqKeySet = (key: string) => invoke<void>("groq_key_set", { key });
 export const permissionsGet = () => invoke<Permissions>("permissions_get");
 export const permissionRequest = (kind: "mic" | "system_audio") => invoke<Permissions>("permission_request", { kind });
 export const notesExport = () => invoke<{ dir: string; count: number }>("notes_export");

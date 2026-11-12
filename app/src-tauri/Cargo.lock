@@ -2416,6 +2416,7 @@ dependencies = [
  "rrule",
  "rusqlite",
  "screencapturekit",
+ "security-framework",
  "serde",
  "serde_json",
  "tauri",
