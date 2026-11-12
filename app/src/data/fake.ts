@@ -131,13 +131,16 @@ export const recordingStart = (id: string) => call("recording_start", () => {
   const n = note(id);
   if (n.deletedAt) throw new Error("Restore this note from the trash before recording.");
   if (n.status === "recording") return n;
-  n.status = "recording"; n.recordingSince = Date.now(); n.error = undefined; n.progress = undefined;
+  n.status = "recording"; n.recordingSince = Date.now(); n.error = undefined; n.progress = undefined; n.stopReason = undefined;
   timers.set(id, window.setInterval(() => tick(id), SEG_MS));
+  // ?autostop=silence or ?autostop=call_ended: the core's auto-stop, after 2 s instead of minutes
+  const auto = new URLSearchParams(location.search).get("autostop");
+  if (auto === "silence" || auto === "call_ended") setTimeout(() => { if (n.status === "recording") { stopNow(id); n.stopReason = auto; commit(); } }, 2000);
   touch(n);
   return n;
 });
 
-export const recordingStop = (id: string) => call("recording_stop", () => {
+function stopNow(id: string) {
   const n = note(id);
   if (n.status !== "recording") return n;
   clearInterval(timers.get(id)); timers.delete(id);
@@ -146,7 +149,8 @@ export const recordingStop = (id: string) => call("recording_stop", () => {
   touch(n);
   setTimeout(() => runPipeline(id), 300);
   return n;
-});
+}
+export const recordingStop = (id: string) => call("recording_stop", () => stopNow(id));
 
 /* Pipeline: transcribe -> write, always visible on the note (fix #2) -------- */
 

@@ -804,3 +804,26 @@ test("S28-E8 Remove key brings the key field back and survives leaving the page"
   await expect(page.getByLabel("Groq API key")).toBeVisible();
   await expect(page.getByText("Groq key saved")).toHaveCount(0);
 });
+
+/* F02 auto-stop (core checks every 15 s; the fake stops after 2 s) */
+
+test("F02-E9 recording that stops on its own says why, and Resume clears the message", async ({ page }) => {
+  await open(page, "/", "?autostop=call_ended");
+  await newNote(page);
+  await page.getByRole("button", { name: "Start recording" }).first().click();
+  await expect(page.getByRole("status").filter({ hasText: "Recording" })).toBeVisible();
+  const why = page.getByText("Recording stopped on its own: the call ended.");
+  await expect(why).toBeVisible({ timeout: 5000 });
+  await expect(page.getByRole("button", { name: "Resume" })).toBeVisible();
+  await page.getByRole("button", { name: "Resume" }).click();
+  await expect(why).toHaveCount(0);
+  await page.getByRole("button", { name: "Stop" }).click();
+  await expect(why).toHaveCount(0); // stopped by hand: no message
+});
+
+test("F02-E10 silence auto-stop explains the 15 minutes", async ({ page }) => {
+  await open(page, "/", "?autostop=silence");
+  await newNote(page);
+  await page.getByRole("button", { name: "Start recording" }).first().click();
+  await expect(page.getByText(/after 15 minutes without anyone speaking/)).toBeVisible({ timeout: 5000 });
+});

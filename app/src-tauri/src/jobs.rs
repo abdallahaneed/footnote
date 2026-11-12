@@ -323,6 +323,46 @@ pub fn same_words(a: &str, b: &str) -> bool {
     hits * 10 >= short.len() * 7
 }
 
+/// Stops a recording: waits for the last segment, marks the note saved and queues the transcript and notes.
+/// `reason` is set when it stopped on its own ("silence" or "call_ended").
+pub fn stop_recording(core: &Core, note_id: &str, reason: Option<&str>) -> anyhow::Result<()> {
+    capture::stop(note_id); // waits for the last segment; must not hold the database lock (the writer needs it)
+    let conn = core.db.lock().unwrap();
+    conn.execute(
+        "update notes set pipeline_status = 'saved', ended_at = ?2, stop_reason = ?3 where id = ?1 and pipeline_status = 'recording'",
+        params![note_id, now_ms(), reason],
+    )?;
+    advance(&conn, note_id)?;
+    drop(conn);
+    (core.notify)();
+    Ok(())
+}
+
+/// One auto-stop check over every live recording. Returns the notes it stopped.
+pub fn auto_stop_tick(core: &Core, now: i64) -> Vec<String> {
+    let mut stopped = Vec::new();
+    for id in capture::recording_ids() {
+        let Some(heard) = capture::heard(&id) else { continue };
+        let end: Option<i64> = core.db.lock().unwrap()
+            .query_row("select e.end_at from notes n join calendar_events e on e.id = n.calendar_event_id where n.id = ?1", [&id], |r| r.get(0))
+            .optional().ok().flatten();
+        if let Some(reason) = capture::auto_stop(now, heard, end) {
+            match stop_recording(core, &id, Some(reason)) {
+                Ok(()) => stopped.push(id),
+                Err(e) => eprintln!("auto-stop {id}: {e}"),
+            }
+        }
+    }
+    stopped
+}
+
+pub fn spawn_auto_stop(core: Arc<Core>) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(15));
+        auto_stop_tick(&core, now_ms());
+    });
+}
+
 pub fn llm(conn: &Connection) -> rusqlite::Result<Llm> {
     conn.query_row("select llm_provider, llm_url, llm_model from settings where id = 1", [], |r| {
         let provider: String = r.get(0)?;
@@ -602,6 +642,32 @@ mod tests {
         let first_load = lags.len() > 1; // the very first line also pays for loading whisper
         assert!(first_load && lags[lags.len() - 2] < 20.0, "lags {lags:?}");
         release_model();
+        std::fs::remove_dir_all(data).unwrap();
+    }
+
+    /// The auto-stop wiring with a real capture session: a silent test mic, then a check 16 minutes later.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn auto_stop_ends_a_silent_recording() {
+        let _one = capture::AUDIO_TEST.lock().unwrap_or_else(|e| e.into_inner());
+        let data = std::env::temp_dir().join(format!("mn-auto-{}", uid()));
+        std::fs::create_dir_all(&data).unwrap();
+        let wav = data.join("quiet.wav");
+        capture::write_wav(&wav, &vec![0.0; 16_000]).unwrap();
+        unsafe { std::env::set_var("MEETING_NOTES_TEST_MIC_WAV", &wav) };
+        let conn = mem();
+        let id = notes::create(&conn, None).unwrap();
+        let core = Arc::new(Core { db: Mutex::new(conn), data: data.clone(), notify: Box::new(|| {}) });
+        let c2 = core.clone();
+        capture::start(&id, core.audio_dir(&id), 0, 0, None, Arc::new(move |n, s| on_segment(&c2, n, s))).unwrap();
+        core.db.lock().unwrap().execute("update notes set pipeline_status = 'recording' where id = ?1", [&id]).unwrap();
+        assert!(auto_stop_tick(&core, now_ms()).is_empty(), "just started: keep recording");
+        assert_eq!(auto_stop_tick(&core, now_ms() + 16 * 60_000), vec![id.clone()]);
+        unsafe { std::env::remove_var("MEETING_NOTES_TEST_MIC_WAV") };
+        assert!(!capture::is_recording(&id));
+        let n = notes::note(&core.db.lock().unwrap(), &id, |_| None, false).unwrap();
+        assert_eq!(n.stop_reason.as_deref(), Some("silence"));
+        assert_ne!(n.status, "recording");
         std::fs::remove_dir_all(data).unwrap();
     }
 

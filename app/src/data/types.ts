@@ -23,6 +23,8 @@ export type Note = {
   status: Status; progress?: number; error?: string;
   generated?: GenLine[];
   folderIds: string[]; deletedAt?: number;
+  // set when recording stopped on its own
+  stopReason?: "silence" | "call_ended";
 };
 
 export type Folder = { id: string; name: string; description: string; icon?: string | null };

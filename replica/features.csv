@@ -17,7 +17,7 @@ Capture only while a note is open,capture,must,yes,yes,capture always belongs to
 Recording indicator in the note,capture,must,yes,yes,S07 bars; build: UI done; capture behind it is fake until replica-backend
 Floating live meeting indicator,capture,should,yes,no,S21; toggle in S28
 Stop and resume transcription,capture,must,yes,partial,S08; build: UI and flow done on fake capture
-Auto-stop on call end / 15 min silence / sleep,capture,should,yes,no,F02 edge cases
+Auto-stop on call end / 15 min silence / sleep,capture,should,yes,partial,"F02 edge cases; 2026-11-12: stops after 15 min with no speech on any channel, or 2 min after the other side goes quiet once the calendar event's end time has passed (mic-only meetings never count as an ended call); the note says why; not built: stop on Mac sleep; not yet seen in a real call"
 Mic selector with Auto,capture,should,yes,partial,"S08; build: selector UI only, not wired to devices"
 Audio stays on device; user sets keep or delete after transcript,privacy,must,yes,yes,"changed by fixes.md #1; default delete after transcript (0003); S28 radio for after transcript / 7d / 30d / forever, retention job built"
 Live streaming transcript,transcript,must,yes,yes,"S08; 2026-11-12: segments end at the first pause after 8 s (15 s at most); measured with real whisper on a 33 s clip replayed in real time: each line arrives 1.6-9.0 s after it was said, median 5.2 s (was up to 35 s); jobs.rs live_lag"

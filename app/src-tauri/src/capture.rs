@@ -54,9 +54,38 @@ pub struct SegmentFile {
 
 pub type OnSegment = Arc<dyn Fn(&str, SegmentFile) + Send + Sync>;
 
+/// When speech was last written to disk, for auto-stop. `system` stays None until the other side has spoken once,
+/// so an in-room meeting (mic only) is never taken for a call that ended.
+#[derive(Clone, Copy, Debug)]
+pub struct Heard {
+    pub any: i64,
+    pub system: Option<i64>,
+}
+
+/// Minutes without speech on any channel before a recording stops on its own.
+pub const SILENCE_MS: i64 = 15 * 60_000;
+/// After the meeting's scheduled end: how long the other side must be quiet.
+pub const CALL_END_MS: i64 = 2 * 60_000;
+
+/// Why this recording should stop now, if it should: "silence" or "call_ended".
+pub fn auto_stop(now: i64, heard: Heard, event_end: Option<i64>) -> Option<&'static str> {
+    if now - heard.any >= SILENCE_MS {
+        return Some("silence");
+    }
+    match (heard.system, event_end) {
+        (Some(last), Some(end)) if now >= end && now - last >= CALL_END_MS => Some("call_ended"),
+        _ => None,
+    }
+}
+
+pub fn heard(note_id: &str) -> Option<Heard> {
+    with(|m| m.get(note_id).map(|s| *s.heard.lock().unwrap()))
+}
+
 struct Session {
     since: i64,
     base_ms: i64,
+    heard: Arc<Mutex<Heard>>,
     stop: mpsc::Sender<()>,
     done: mpsc::Receiver<()>,
 }
@@ -386,6 +415,8 @@ pub fn start(note_id: &str, dir: PathBuf, base_ms: i64, next_seq: i64, mic_id: O
     let (stop_tx, stop_rx) = mpsc::channel::<()>();
     let (done_tx, done_rx) = mpsc::channel::<()>();
     let id = note_id.to_string();
+    let heard = Arc::new(Mutex::new(Heard { any: crate::db::now_ms(), system: None }));
+    let h2 = heard.clone();
     std::thread::spawn(move || {
         let mut written: Vec<usize> = vec![0; chans.len()]; // source samples per channel already in files
         let mut seq = next_seq;
@@ -404,6 +435,13 @@ pub fn start(note_id: &str, dir: PathBuf, base_ms: i64, next_seq: i64, mic_id: O
                     };
                     let file_name = format!("{}-{seq:05}.wav", c.name);
                     let samples = resample(&take, c.rate, RATE);
+                    if has_speech(&samples) {
+                        let mut h = h2.lock().unwrap();
+                        h.any = crate::db::now_ms();
+                        if c.name == "system" {
+                            h.system = Some(h.any);
+                        }
+                    }
                     match write_wav(&dir.join(&file_name), &samples) {
                         Ok(bytes) => on_segment(&id, SegmentFile {
                             channel: c.name, seq, file_name, bytes,
@@ -424,7 +462,7 @@ pub fn start(note_id: &str, dir: PathBuf, base_ms: i64, next_seq: i64, mic_id: O
         drop(chans);
         let _ = done_tx.send(());
     });
-    with(|m| m.insert(note_id.to_string(), Session { since: crate::db::now_ms(), base_ms, stop: stop_tx, done: done_rx }));
+    with(|m| m.insert(note_id.to_string(), Session { since: crate::db::now_ms(), base_ms, heard, stop: stop_tx, done: done_rx }));
     Ok(())
 }
 
@@ -483,6 +521,25 @@ mod tests {
         drop(stt); // free before exit (Metal)
         assert!(text.to_lowercase().contains("project"), "heard: {text}");
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn auto_stop_after_silence_or_when_the_call_ends() {
+        let m = 60_000;
+        let at = |any: i64, system: Option<i64>| Heard { any, system };
+        // someone spoke 14 min ago: keep going; 15 min: stop
+        assert_eq!(auto_stop(14 * m, at(0, None), None), None);
+        assert_eq!(auto_stop(15 * m, at(0, None), None), Some("silence"));
+        // a call: the other side quiet for 2 min after the scheduled end
+        assert_eq!(auto_stop(32 * m, at(31 * m, Some(30 * m)), Some(30 * m)), Some("call_ended"));
+        // before the end time, a quiet other side means nothing
+        assert_eq!(auto_stop(20 * m, at(19 * m, Some(10 * m)), Some(30 * m)), None);
+        // the meeting runs long and they are still talking
+        assert_eq!(auto_stop(40 * m, at(40 * m, Some(39 * m)), Some(30 * m)), None);
+        // in the room, mic only, past the end time: never "call ended"
+        assert_eq!(auto_stop(40 * m, at(39 * m, None), Some(30 * m)), None);
+        // no calendar event: only silence stops it
+        assert_eq!(auto_stop(40 * m, at(39 * m, Some(30 * m)), None), None);
     }
 
     #[test]

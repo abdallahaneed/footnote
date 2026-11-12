@@ -94,6 +94,13 @@ export function NoteScreen({ id }: { id: string }) {
           {(note.recordedMs > 0 || recording) && ` · ${duration(liveMs(note, now))}`}
           {note.attendees.length > 0 && ` · ${note.attendees.map((a) => a.name).join(", ")}`}
         </p>
+        {note.stopReason && !recording && (
+          <p className="-mt-3 mb-5 text-sm text-muted" role="status">
+            {note.stopReason === "call_ended"
+              ? "Recording stopped on its own: the call ended. Press Resume if it is still going."
+              : "Recording stopped on its own after 15 minutes without anyone speaking. Press Resume to go on."}
+          </p>
+        )}
 
         {error && <div className="mb-4"><LoadError message={error} onRetry={() => setError(undefined)} /></div>}
         {note.status === "failed" && (

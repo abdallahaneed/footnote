@@ -158,7 +158,7 @@ fn recording_start(st: State<St>, id: String) -> R<Note> {
     }
     write(&st, |c| {
         c.execute(
-            "update notes set pipeline_status = 'recording', pipeline_error = null, started_at = coalesce(started_at, ?2), updated_at = ?2 where id = ?1",
+            "update notes set pipeline_status = 'recording', pipeline_error = null, stop_reason = null, started_at = coalesce(started_at, ?2), updated_at = ?2 where id = ?1",
             params![id, now_ms()],
         )?;
         note_of(c, &id)
@@ -168,12 +168,8 @@ fn recording_start(st: State<St>, id: String) -> R<Note> {
 #[tauri::command(async)]
 fn recording_stop(st: State<St>, id: String) -> R<Note> {
     check_id(&id)?;
-    capture::stop(&id); // waits for the last segment; must not hold the database lock (the writer needs it)
-    write(&st, |c| {
-        c.execute("update notes set pipeline_status = 'saved', ended_at = ?2 where id = ?1 and pipeline_status = 'recording'", params![id, now_ms()])?;
-        jobs::advance(c, &id)?;
-        note_of(c, &id)
-    })
+    jobs::stop_recording(&st.0, &id, None).map_err(err)?;
+    read(&st, |c| note_of(c, &id))
 }
 
 /* Writing notes and transcript --------------------------------------------------------------------- */
@@ -558,6 +554,7 @@ pub fn run() {
             let handle = app.handle().clone();
             let core = Arc::new(Core { db: Mutex::new(conn), data, notify: Box::new(move || { let _ = handle.emit("changed", ()); }) });
             jobs::spawn(core.clone());
+            jobs::spawn_auto_stop(core.clone());
             spawn_notifier(app.handle().clone(), core.clone());
             app.manage(St(core));
             Ok(())

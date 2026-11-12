@@ -36,6 +36,9 @@ pub struct Note {
     pub folder_ids: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deleted_at: Option<i64>,
+    /// Set when recording stopped on its own: "silence" or "call_ended".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stop_reason: Option<String>,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -122,7 +125,7 @@ fn progress(conn: &Connection, note_id: &str) -> rusqlite::Result<i64> {
 }
 
 const NOTE_COLS: &str = "id, title, calendar_event_id, created_at, updated_at, own_notes_json, coalesce(template_id, 't-standard'),
-  pipeline_status, pipeline_error, enhanced_md, deleted_at";
+  pipeline_status, pipeline_error, enhanced_md, deleted_at, stop_reason";
 
 pub fn note(conn: &Connection, id: &str, live: impl Fn(&str) -> LiveInfo, with_generated: bool) -> anyhow::Result<Note> {
     let n = conn
@@ -130,12 +133,12 @@ pub fn note(conn: &Connection, id: &str, live: impl Fn(&str) -> LiveInfo, with_g
             Ok((
                 r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?, r.get::<_, i64>(3)?, r.get::<_, i64>(4)?,
                 r.get::<_, String>(5)?, r.get::<_, String>(6)?, r.get::<_, String>(7)?, r.get::<_, Option<String>>(8)?,
-                r.get::<_, Option<String>>(9)?, r.get::<_, Option<i64>>(10)?,
+                r.get::<_, Option<String>>(9)?, r.get::<_, Option<i64>>(10)?, r.get::<_, Option<String>>(11)?,
             ))
         })
         .optional()?
         .context("This note no longer exists.")?;
-    let (id, title, event, created, updated, own, template, status, error, md, deleted) = n;
+    let (id, title, event, created, updated, own, template, status, error, md, deleted, stop_reason) = n;
     let live = live(&id);
     Ok(Note {
         attendees: attendees(conn, &id)?,
@@ -147,6 +150,7 @@ pub fn note(conn: &Connection, id: &str, live: impl Fn(&str) -> LiveInfo, with_g
         status: ui_status(&status).to_string(),
         own_text: own_text(&own),
         id, title, calendar_event_id: event, created_at: created, updated_at: updated, template_id: template, error, deleted_at: deleted,
+        stop_reason: if live.is_some() { None } else { stop_reason },
     })
 }
 
