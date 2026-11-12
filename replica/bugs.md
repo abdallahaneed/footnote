@@ -249,5 +249,5 @@ Actual: the box is emptied when the first add finishes.
 Evidence: test "S02-E5 each calendar shows its own name and can be switched off and on, by keyboard too" (edge.spec.ts)
 Cause: the box was cleared after every add, whatever it held by then.
 Fix: clear it only if it still holds the link that was added.
-Status: fixed in FIXCOMMIT
+Status: fixed in de0468a
 
