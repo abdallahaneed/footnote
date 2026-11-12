@@ -1049,3 +1049,24 @@ test("F08-E2 recipes page at 390px", async ({ page }) => {
   expect(await page.evaluate(() => document.scrollingElement!.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: "../replica/clone-screens/S11-390.png", fullPage: true });
 });
+
+/* S05 shift-click range */
+
+test("F14-E5 shift-click selects every note in between, shift-click again clears a range, Shift-Space works too", async ({ page }) => {
+  await open(page, "/");
+  const box = (t: string) => page.getByRole("checkbox", { name: `Select ${t}` });
+  await box("Hiring sync").click();
+  await box("Vendor onboarding").click({ modifiers: ["Shift"] });
+  await expect(page.getByText("3 selected")).toBeVisible();
+  await expect(box("Roadmap check-in")).toBeChecked();
+  await box("Roadmap check-in").click({ modifiers: ["Shift"] }); // unchecking: from the last click (Vendor) up to here
+  await expect(page.getByText("1 selected")).toBeVisible();
+  await expect(box("Hiring sync")).toBeChecked();
+  await expect(box("Vendor onboarding")).not.toBeChecked();
+  await box("Vendor onboarding").focus();
+  await page.keyboard.press("Shift+Space"); // from Roadmap (last) to Vendor
+  await expect(page.getByText("3 selected")).toBeVisible();
+  await page.getByRole("toolbar", { name: "Selected notes" }).getByRole("button", { name: "Clear" }).click();
+  await box("Roadmap check-in").click({ modifiers: ["Shift"] }); // no earlier click: just this one
+  await expect(page.getByText("1 selected")).toBeVisible();
+});

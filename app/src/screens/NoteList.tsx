@@ -1,5 +1,6 @@
-// Note rows with checkbox multi-select and a selection bar. Used by home (S05) and folders (S23).
-import { useState, type ReactNode } from "react";
+// Note rows with checkbox multi-select and a selection bar. Used by home (S05) and folders (S23). Shift-click (or
+// Shift-Space) on a checkbox sets every note between it and the last one clicked.
+import { useRef, useState, type ReactNode } from "react";
 import { Button, Menu, SkeletonRows } from "../ui/base";
 import { NoteRow } from "../ui/notes";
 import { LoadError } from "../app/Layout";
@@ -16,13 +17,23 @@ export function NoteList({ notes, folders, empty, extraActions }: {
 }) {
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string>();
-  const clear = () => setSel(new Set());
+  const anchor = useRef<string>(undefined);
+  const clear = () => { setSel(new Set()); anchor.current = undefined; };
   const ids = [...sel].filter((id) => notes.data?.some((n) => n.id === id));
   const act = (fn: () => Promise<unknown>) => fn().then(clear, (e: Error) => setError(e.message));
 
   if (notes.loading) return <SkeletonRows n={4} />;
   if (notes.error) return <LoadError message={notes.error} onRetry={notes.retry} />;
   if (!notes.data?.length) return <>{empty}</>;
+  const groups = groupBy(notes.data, (n) => dayLabel(n.createdAt));
+  const order = groups.flatMap(([, list]) => list.map((n) => n.id)); // as shown, top to bottom
+  const select = (id: string, v: boolean, range: boolean) => {
+    const from = anchor.current ? order.indexOf(anchor.current) : -1;
+    const to = order.indexOf(id);
+    const span = range && from >= 0 ? order.slice(Math.min(from, to), Math.max(from, to) + 1) : [id];
+    setSel((s) => { const c = new Set(s); span.forEach((x) => (v ? c.add(x) : c.delete(x))); return c; });
+    anchor.current = id;
+  };
   return (
     <div className="flex flex-col gap-1">
       {ids.length > 0 && (
@@ -38,13 +49,13 @@ export function NoteList({ notes, folders, empty, extraActions }: {
         </div>
       )}
       {error && <LoadError message={error} onRetry={() => setError(undefined)} />}
-      {groupBy(notes.data, (n) => dayLabel(n.createdAt)).map(([day, list]) => (
+      {groups.map(([day, list]) => (
         <section key={day} aria-label={day}>
           <h3 className="px-2 pb-1 pt-3 text-xs font-semibold text-muted">{day}</h3>
           {list.map((n) => (
             <NoteRow key={n.id} title={noteTitle(n)} meta={`${time(n.createdAt)}${n.recordedMs ? ` · ${duration(n.recordedMs)}` : ""}`}
               stage={stageOf(n)} selected={sel.has(n.id)} selecting={ids.length > 0}
-              onSelect={(v) => setSel((s) => { const c = new Set(s); if (v) c.add(n.id); else c.delete(n.id); return c; })}
+              onSelect={(v, range) => select(n.id, v, range)}
               onOpen={() => go(`/note/${n.id}`)} />
           ))}
         </section>

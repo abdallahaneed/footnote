@@ -63,7 +63,7 @@ Spaces (My notes + custom),organise,should,yes,no,S06
 Folders with icon and description,organise,must,yes,yes,"S06 S23; name, description and one of 16 icons (keyboard radio group in the folder dialog); icon shows in the sidebar, folder header and palette; stored as a key in folders.icon"
 Subfolders one level,organise,could,yes,no,S06
 Note in many folders,organise,must,yes,yes,data model NoteFolder
-Multi-select notes with checkbox and shift-click,organise,should,yes,partial,S05; build: checkboxes and bar; no shift-click range
+Multi-select notes with checkbox and shift-click,organise,should,yes,yes,"S05/S23; 2026-11-12: Shift-click or Shift-Space sets every note between the last checkbox clicked and this one, in the order shown; works to clear a range too"
 Auto-add recurring meetings to folder,organise,should,yes,no,F09
 Sidebar toggle shortcut,organise,should,yes,yes,⌘S / Ctrl+S; build: Cmd/Ctrl+S
 Command palette ⌘K,search,must,yes,yes,S19; build: S19

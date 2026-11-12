@@ -140,11 +140,11 @@ export function GeneratedLine({ children, sources, onPlay }: { children: ReactNo
 /* Rows (S05, S16-S18, S22, S23) ---------------------------------------------------- */
 
 export function NoteRow({ title, meta, stage, selected, selecting, onSelect, onOpen, shared }: {
-  title: string; meta: string; stage?: Stage; selected?: boolean; selecting?: boolean; onSelect: (v: boolean) => void; onOpen: () => void; shared?: boolean;
+  title: string; meta: string; stage?: Stage; selected?: boolean; selecting?: boolean; onSelect: (v: boolean, range: boolean) => void; onOpen: () => void; shared?: boolean;
 }) {
   return (
     <div className={cx("group flex items-center gap-3 rounded-md px-2", selected ? "bg-accent-soft" : "hover:bg-surface")} style={{ height: "var(--row)" }}>
-      <input type="checkbox" aria-label={`Select ${title}`} checked={!!selected} onChange={(e) => onSelect(e.target.checked)}
+      <input type="checkbox" aria-label={`Select ${title}`} checked={!!selected} onChange={(e) => onSelect(e.target.checked, (e.nativeEvent as MouseEvent).shiftKey === true)}
         className={cx("size-4 accent-accent", !selected && !selecting && "opacity-0 group-hover:opacity-100 focus-visible:opacity-100")} />
       <button onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <span className="truncate text-base font-medium">{title}</span>
