@@ -506,6 +506,46 @@ fn meeting_dismiss(window: tauri::Window) {
     let _ = window.close();
 }
 
+/// Open pop-ups, oldest first, with their slot (0 = top). Pop-ups open without focus so they never steal typing;
+/// Control-Option-N, registered only while one is open, focuses the newest for keyboard use.
+static TOASTS: Mutex<Vec<(String, usize)>> = Mutex::new(Vec::new());
+
+fn toast_shortcut() -> tauri_plugin_global_shortcut::Shortcut {
+    use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
+    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyN)
+}
+
+/// Takes a slot for a new pop-up (forgetting pop-ups that are gone) and registers the shortcut with the first one.
+fn toast_opened(app: &tauri::AppHandle, label: &str) -> usize {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let mut t = TOASTS.lock().unwrap();
+    t.retain(|(l, _)| app.get_webview_window(l).is_some());
+    let slot = notify::free_slot(&t.iter().map(|(_, s)| *s).collect::<Vec<_>>());
+    if t.is_empty() && !app.global_shortcut().is_registered(toast_shortcut()) {
+        if let Err(e) = app.global_shortcut().register(toast_shortcut()) {
+            eprintln!("pop-up shortcut: {e}"); // taken by another app: the pop-up still works with the mouse
+        }
+    }
+    t.push((label.to_string(), slot));
+    slot
+}
+
+fn toast_closed(app: &tauri::AppHandle, label: &str) {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let mut t = TOASTS.lock().unwrap();
+    t.retain(|(l, _)| l != label);
+    if t.is_empty() {
+        let _ = app.global_shortcut().unregister(toast_shortcut());
+    }
+}
+
+fn focus_newest_toast(app: &tauri::AppHandle) {
+    let newest = TOASTS.lock().unwrap().iter().rev().find_map(|(l, _)| app.get_webview_window(l));
+    if let Some(w) = newest {
+        let _ = w.set_focus();
+    }
+}
+
 /// Every 15 s: a small always-on-top window, top right, for each meeting about to start.
 fn spawn_notifier(app: tauri::AppHandle, core: Arc<Core>) {
     std::thread::spawn(move || {
@@ -515,17 +555,19 @@ fn spawn_notifier(app: tauri::AppHandle, core: Arc<Core>) {
                 eprintln!("notifier: {e}");
                 vec![]
             });
-            for (i, d) in due.into_iter().enumerate() {
+            for d in due {
                 shown.insert(d.id.clone());
                 let h = app.clone();
                 let _ = app.run_on_main_thread(move || {
                     let (w, h_px) = (360.0, 128.0);
                     let x = h.primary_monitor().ok().flatten().map(|m| m.size().width as f64 / m.scale_factor() - w - 16.0).unwrap_or(40.0);
                     let url = tauri::WebviewUrl::App(format!("index.html#/toast/{}", d.id).into());
-                    let built = tauri::WebviewWindowBuilder::new(&h, format!("toast-{}", d.id), url)
+                    let label = format!("toast-{}", d.id);
+                    let slot = toast_opened(&h, &label);
+                    let built = tauri::WebviewWindowBuilder::new(&h, &label, url)
                         .title("Meeting starting")
                         .inner_size(w, h_px)
-                        .position(x, 40.0 + i as f64 * (h_px + 12.0))
+                        .position(x, 40.0 + slot as f64 * (h_px + 12.0))
                         .decorations(false)
                         .resizable(false)
                         .always_on_top(true)
@@ -534,6 +576,7 @@ fn spawn_notifier(app: tauri::AppHandle, core: Arc<Core>) {
                         .build();
                     if let Err(e) = built {
                         eprintln!("notifier window: {e}");
+                        toast_closed(&h, &label);
                     }
                 });
             }
@@ -546,6 +589,20 @@ fn spawn_notifier(app: tauri::AppHandle, core: Arc<Core>) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    if *shortcut == toast_shortcut() && event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        focus_newest_toast(app);
+                    }
+                })
+                .build(),
+        )
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) && window.label().starts_with("toast-") {
+                toast_closed(window.app_handle(), window.label());
+            }
+        })
         .setup(|app| {
             let data = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data)?;

@@ -255,8 +255,8 @@ export function ChatMessage({ role, children, citations, streaming, error, onRet
 
 /* Meeting notification (S20): solid edge = calendar, dashed edge = detected call ---------- */
 
-export function MeetingToast({ kind, title, detail, onTakeNotes, onDismiss }: {
-  kind: "calendar" | "detected"; title: string; detail: string; onTakeNotes: () => void; onDismiss: () => void;
+export function MeetingToast({ kind, title, detail, onTakeNotes, onDismiss, hint }: {
+  kind: "calendar" | "detected"; title: string; detail: string; onTakeNotes: () => void; onDismiss: () => void; hint?: string;
 }) {
   return (
     <section aria-label={`Meeting: ${title}`} className="flex overflow-hidden rounded-lg border border-border bg-bg shadow-pop" style={{ width: "var(--toast-w)" }}>
@@ -270,7 +270,10 @@ export function MeetingToast({ kind, title, detail, onTakeNotes, onDismiss }: {
           </div>
           <IconButton label="Dismiss" onClick={onDismiss}><X className="size-4" aria-hidden /></IconButton>
         </div>
-        <Button variant="primary" size="sm" onClick={onTakeNotes} className="self-start">Start notes</Button>
+        <div className="flex items-center gap-3">
+          <Button variant="primary" size="sm" onClick={onTakeNotes}>Start notes</Button>
+          {hint && <span className="truncate text-xs text-muted">{hint}</span>}
+        </div>
       </div>
     </section>
   );

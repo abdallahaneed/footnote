@@ -1,6 +1,6 @@
 // S20 meeting notification. In the app this page fills a small always-on-top window the core opens a minute before a
 // meeting with two or more people (src-tauri/src/notify.rs). In a browser it is a plain page at #/toast/<event id>.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Banner, Button, SkeletonRows } from "../ui/base";
 import { MeetingToast } from "../ui/notes";
 import { go } from "../app/router";
@@ -14,6 +14,11 @@ export function MeetingPopup({ eventId }: { eventId: string }) {
   const [error, setError] = useState<string>();
   const ev = events.data?.find((e) => e.id === eventId);
   const close = () => (isDesktop ? meetingDismiss() : Promise.resolve(go("/")));
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const take = async () => {
     if (busy) return; // one click, one recording
     setBusy(true);
@@ -33,6 +38,7 @@ export function MeetingPopup({ eventId }: { eventId: string }) {
         : events.error ? <Banner tone="error" action={<Button size="sm" onClick={events.retry}>Try again</Button>}>{events.error}</Banner>
         : !ev ? <Banner tone="info" action={<Button size="sm" onClick={close}>Close</Button>}>This meeting is no longer in your calendar.</Banner>
         : <MeetingToast kind="calendar" title={ev.title} onTakeNotes={take} onDismiss={close}
+            hint={isDesktop ? "Control-Option-N to use the keyboard" : undefined}
             detail={`${time(ev.startAt)} · ${ev.invitees.map((p) => p.name.split(" ")[0]).join(", ")}`} />}
       {error && <Banner tone="error">{error}</Banner>}
     </main>

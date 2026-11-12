@@ -31,6 +31,11 @@ pub fn due(conn: &Connection, now: i64, shown: &HashSet<String>) -> anyhow::Resu
     Ok(rows.collect::<Result<Vec<_>, _>>()?.into_iter().filter(|d| !shown.contains(&d.id)).collect())
 }
 
+/// The lowest pop-up slot (0 = top) not taken by an open pop-up, so a new one never covers an old one.
+pub fn free_slot(used: &[usize]) -> usize {
+    (0..).find(|i| !used.contains(i)).unwrap()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -44,6 +49,15 @@ mod tests {
             params![id, serde_json::to_string(&people).unwrap(), start, cancelled],
         )
         .unwrap();
+    }
+
+    #[test]
+    fn new_pop_ups_take_the_first_free_slot() {
+        assert_eq!(free_slot(&[]), 0);
+        assert_eq!(free_slot(&[0]), 1);
+        assert_eq!(free_slot(&[0, 1, 2]), 3);
+        assert_eq!(free_slot(&[1, 2]), 0, "the top one was closed: reuse it");
+        assert_eq!(free_slot(&[0, 2]), 1);
     }
 
     #[test]

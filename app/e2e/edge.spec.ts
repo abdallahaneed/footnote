@@ -827,3 +827,14 @@ test("F02-E10 silence auto-stop explains the 15 minutes", async ({ page }) => {
   await page.getByRole("button", { name: "Start recording" }).first().click();
   await expect(page.getByText(/after 15 minutes without anyone speaking/)).toBeVisible({ timeout: 5000 });
 });
+
+test("S20-E6 Esc dismisses the pop-up without a note; Tab reaches Start notes", async ({ page }) => {
+  await open(page, "/toast/e-design");
+  await page.getByRole("button", { name: "Start notes" }).waitFor();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Start notes" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/#\/$/);
+  await expect(page.getByRole("button", { name: /Design review/ })).toHaveCount(1);
+});

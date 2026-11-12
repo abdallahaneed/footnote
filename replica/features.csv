@@ -74,7 +74,7 @@ Add images to a note,notes,should,yes,no,changelog Nov 2024
 Upload files to a note,notes,could,yes,no,changelog Jun 2025
 Trash with restore and 30-day purge,notes,must,yes,yes,"S22; build: S22, purge on launch; backend: real: purge job also removes audio files"
 Transcript auto-deletion setting,privacy,should,yes,partial,S28; backend: retention job built; no settings screen
-Meeting notification 1 min before event,detect,must,yes,partial,"S20 built 2026-11-08: Rust checks every 15 s for events starting within 75 s with 2+ invitees from an enabled calendar, no recording note; own always-on-top window top right; selection unit-tested; not yet seen fire from a real calendar"
+Meeting notification 1 min before event,detect,must,yes,partial,"S20 built 2026-11-08: Rust checks every 15 s for events starting within 75 s with 2+ invitees from an enabled calendar, no recording note; own always-on-top window top right; selection unit-tested; not yet seen fire from a real calendar; 2026-11-12: pop-ups take the first free slot so they never overlap; Control-Option-N (registered only while a pop-up is open) focuses the newest; Esc dismisses"
 Detect ad-hoc calls from mic use,detect,should,yes,no,S20 Meeting / Huddle / Call detected
 Per-app notification toggles,detect,should,yes,no,S29
 Open video link from notification,detect,should,yes,partial,S20 Start notes opens the event's https video link via the system browser; not yet tried with a real event
