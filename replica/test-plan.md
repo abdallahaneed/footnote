@@ -1,6 +1,6 @@
 # Test plan: meeting-notes clone
 
-Build: dd0bbe2, second round on 797c5af (S03, S28, export), third on b721afe (S20), fourth on 8161809 (S07 rich text editor), fifth on b2e0a57 (S19 FTS5 search, folder icons), sixth on b9e32f7 (Apple and Groq note writing, migration 0005, 2026-11-12), plus the fixes in bugs.md  Date: 2026-11-08  Env: local, `npm run dev` (fake data layer, seed data), Chromium 1440px and 390px
+Build: dd0bbe2, second round on 797c5af (S03, S28, export), third on b721afe (S20), fourth on 8161809 (S07 rich text editor), fifth on b2e0a57 (S19 FTS5 search, folder icons), sixth on b9e32f7 (Apple and Groq note writing, migration 0005, 2026-11-12), seventh on d8535b4 (live transcript pieces, auto-stop, pop-up slots and shortcut, calendar switches; desktop app run), plus the fixes in bugs.md  Date: 2026-11-08  Env: local, `npm run dev` (fake data layer, seed data), Chromium 1440px and 390px
 Specs: app/e2e/app.spec.ts (happy paths, axe, widths), app/e2e/edge.spec.ts (edge and negative cases), app/e2e/design.spec.ts (components). Every spec fails on page errors and console errors; edge.spec.ts also fails on any 5xx response.
 
 Scope: milestone 1 screens that are built (S02 calendar links, S05-S10, S13, S19, S22, S23). F01 sign-in/permissions, F08, F10-F12, F15-F17 hit "Not built yet" stubs and are blocked, not failed.
@@ -116,6 +116,21 @@ Scope: milestone 1 screens that are built (S02 calendar links, S05-S10, S13, S19
 | S28-E7 | settings | edge: Mac that cannot run Apple's model, keyboard only, key with spaces around it | ?apple=old_macos | option disabled with reason; Groq picked with Space; key trimmed and saved; axe clean | e2e edge | pass |
 | S28-E8 | settings | edge: Remove key, leave, come back | | key field shown again | e2e edge | pass |
 | S28-N3 | settings | negative: key with a space inside, empty model name, 201-character model name | | "does not look like a Groq API key", "Enter a model name", length message | e2e app + edge | pass |
+| R7-H1 | F02 live transcript | happy: 33 s spoken clip replayed in real time through capture, whisper and the job worker | | each line in the app within 20 s | cargo ignored live_lag | pass: 1.6-9.0 s, median 5.2 s |
+| R7-E1 | F02 segments | edge: pause after 8 s, pause before 8 s, no pause for 15 s, under 8 s | | cut in the pause; wait; cut at the quietest point; wait | cargo segments_end_at_a_pause | pass |
+| R7-H2 | F02 auto-stop | happy: silent recording, check 16 min later | | stops, note says "silence", queued for transcript | cargo auto_stop_ends_a_silent_recording | pass |
+| R7-E2 | F02 auto-stop | edge: 14 vs 15 min, before and after the end time, meeting runs long, mic-only meeting, no calendar event | | only silence or an ended call stops it | cargo auto_stop_after_silence | pass |
+| R7-E3 | F02 auto-stop | edge: Resume after an auto-stop, then Stop by hand | ?autostop=call_ended | message gone on Resume, no message after a manual Stop | e2e edge F02-E9, E10 | pass |
+| R7-H3 | S20 pop-ups | happy, desktop app: two meetings due together | real windows read from macOS | two pop-ups, y 40 and 180, no overlap | by hand (CGWindowList) | pass |
+| R7-H4 | S20 shortcut | happy, desktop app: Control-Option-N with two pop-ups open | real key press | Footnote comes to the front, newest pop-up focused | by hand (CGEvent, AX) | pass |
+| R7-E4 | S20 dismiss | desktop app: click X on a pop-up | real click | window closes | by hand | pass |
+| R7-E5 | S20 keyboard | desktop app: Esc, Tab, Option-Tab inside a pop-up | synthetic key presses | Esc closes it, Tab shows a focus ring | by hand | open: nothing visible happened; not counted as a bug until checked by hand (manual item 9) |
+| R7-E6 | S20 slots | edge: slot reuse after a pop-up closes | | first free slot | cargo new_pop_ups_take_the_first_free_slot; desktop not checked | pass (unit) |
+| R7-H5 | S02 calendars | happy: two calendars named from their files, switch one off and on, by keyboard, axe | | names shown, Off text, saved across pages | e2e edge S02-E5 | pass after BUG-014 fix |
+| R7-E7 | S02 calendars | edge: 390px, long name | | wraps, switch and Remove on screen | e2e edge S02-E6 | pass |
+| R7-E8 | S02 calendars | edge: calendar file name with escapes, empty name, 300 characters, name inside an event | | "Hiring, EMEA"; host kept; cut at 100; event value ignored | cargo reads_the_calendar_name | pass |
+| R7-E9 | S02 calendars | off hides Home meetings, events kept, on brings them back | | | cargo reads_the_calendar_name | pass |
+| R7-M1 | upgrade | desktop app on the real dev database at version 4 | | migrates to 6 at start, settings and notes kept, integrity ok | by hand | pass |
 | X-H1 | all screens | a11y and widths | 6 screens x 1440/390 x light/dark | no serious axe issues, no sideways scroll | e2e app | pass |
 | X-E1 | | edge: phone width, keyboard only | ⌘K, New note, type | works, axe clean | e2e edge | pass |
 | X-N1 | | negative: core unreachable | ?fail=notes_list | error with Try again | e2e app | pass |
@@ -132,6 +147,8 @@ Not automatable from Playwright because the browser run uses the fake layer. Run
 6. Calendar ICS link syncs real events into Upcoming, across a time-zone change.
 7. Own-notes editor in the desktop window (WKWebView, not Chromium): German dead keys (ä via Option-u), Cmd+B/I, Cmd+Z, "- " list, then Cmd+Q right after typing and reopen: the last words are there.
 8. Search in the desktop app after the 0004 migration: the first search after start indexes every note; it should feel instant, and a word from a transcript recorded today is found.
+9. Meeting pop-up with the keyboard (round 7): when a pop-up shows, press Control-Option-N. Then press Esc: the pop-up should close. Open another one and press Tab, then Option-Tab: a ring should appear on X or Start notes. If Esc does nothing, that is a bug to log.
+10. Auto-stop (round 7): in a real call with a calendar event, stay in the call past its end time, then leave the call and wait 2 minutes. Recording should stop on its own and the note should say the call ended.
 
 ## To check (seen in code, not reproduced as a user-visible bug)
 
@@ -150,3 +167,7 @@ Not automatable from Playwright because the browser run uses the fake layer. Run
 13. Groq's free-tier limits are not written down on their docs page. A day of long meetings could run out of daily tokens; the message then says to try again in a few minutes, which may be wrong for a daily limit.
 14. In dev builds macOS may ask for Keychain access after every rebuild, because the unsigned app changes. Check that a signed build asks once at most.
 15. Chat on Apple's model sees about 4,000 characters of notes, so in a long meeting it reads the written notes but only the start of the transcript. Answers about the end of a long meeting may say the notes do not cover it.
+16. In the desktop app (WKWebView), Tab may skip buttons unless macOS Keyboard navigation is on (System Settings, Keyboard). Keyboard-only use of the whole app may then need Option-Tab. Not confirmed (R7-E5).
+17. Auto-stop on silence trusts the loudness level used for speech (RMS 0.006). A noisy room or a fan above that level would keep a recording going forever. Not measured with a real mic.
+18. Shorter segments mean whisper runs more often on near-silent clips, which can add invented words like "Thank you." in quiet stretches. Watch for it in a real call.
+19. If another app already uses Control-Option-N, registering fails quietly (logged only) and the pop-up hint is wrong.
