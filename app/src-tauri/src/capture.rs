@@ -1,4 +1,4 @@
-//! Recording. Each channel (mic now, system audio later) is cut into 30 s WAV files while recording, each file
+//! Recording. Each channel is cut into 8-15 s WAV files while recording (at a pause, so words stay whole), each file
 //! synced to disk before its row is written, so a crash loses at most the last unfinished segment (fix #1).
 //! "mic" is you; "system" is everything the Mac plays (Zoom, Teams, Meet, a browser call), which is the other side.
 //! System audio uses ScreenCaptureKit on macOS (Screen & System Audio Recording permission). Windows loopback: not built.
@@ -10,7 +10,38 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 pub const RATE: u32 = 16_000;
-const SEG_SECS: usize = 30;
+/// A segment ends at the first pause after MIN_SECS, or at the quietest point once MAX_SECS are buffered. Short
+/// segments keep the live transcript about 10 s behind instead of 30 s.
+const MIN_SECS: usize = 8;
+const MAX_SECS: usize = 15;
+/// Below this loudness (RMS) a stretch counts as a pause; the same level has_speech uses.
+const QUIET: f32 = 0.006;
+
+fn rms(w: &[f32]) -> f32 {
+    (w.iter().map(|s| s * s).sum::<f32>() / w.len().max(1) as f32).sqrt()
+}
+
+/// Where to end the next segment of `b` (samples at `rate`), or None to wait for more audio.
+fn cut_at(b: &[f32], rate: usize) -> Option<usize> {
+    let (min, max, win) = (rate * MIN_SECS, rate * MAX_SECS, rate / 10);
+    if b.len() < min + win {
+        return None;
+    }
+    let end = b.len().min(max);
+    let mut best = (f32::MAX, min);
+    let mut i = min;
+    while i + win <= end {
+        let r = rms(&b[i..i + win]);
+        if r < QUIET {
+            return Some(i + win / 2); // first pause: cut in the middle of it
+        }
+        if r < best.0 {
+            best = (r, i + win / 2);
+        }
+        i += win / 2;
+    }
+    (b.len() >= max).then_some(best.1)
+}
 
 pub struct SegmentFile {
     pub channel: &'static str,
@@ -343,7 +374,7 @@ pub fn read_wav(path: &Path) -> anyhow::Result<Vec<f32>> {
 
 /// Roughly: is anyone talking in this clip. Silent segments skip whisper, which would invent words.
 pub fn has_speech(samples: &[f32]) -> bool {
-    samples.chunks(320).any(|w| (w.iter().map(|s| s * s).sum::<f32>() / w.len() as f32).sqrt() > 0.006)
+    samples.chunks(320).any(|w| rms(w) > QUIET)
 }
 
 /// Starts recording into `dir`. `base_ms` = audio already recorded for this note (resume), `next_seq` = first
@@ -360,11 +391,14 @@ pub fn start(note_id: &str, dir: PathBuf, base_ms: i64, next_seq: i64, mic_id: O
         let mut seq = next_seq;
         let mut flush = |chans: &[Chan], written: &mut [usize], last: bool| {
             for (i, c) in chans.iter().enumerate() {
-                let per = SEG_SECS * c.rate as usize;
                 loop {
                     let take: Vec<f32> = {
                         let mut b = c.buf.lock().unwrap();
-                        let n = if b.len() >= per { per } else if last && b.len() >= c.rate as usize / 3 { b.len() } else { 0 };
+                        let n = match cut_at(&b, c.rate as usize) {
+                            Some(n) => n,
+                            None if last && b.len() >= c.rate as usize / 3 => b.len(),
+                            None => 0,
+                        };
                         if n == 0 { break; }
                         b.drain(..n).collect()
                     };
@@ -449,6 +483,30 @@ mod tests {
         drop(stt); // free before exit (Metal)
         assert!(text.to_lowercase().contains("project"), "heard: {text}");
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn segments_end_at_a_pause_after_8_s_or_at_15_s() {
+        let r = 1_000; // samples per second, small for the test
+        let talk = |s: usize| vec![0.2f32; s * r];
+        // 10 s of talk, a 0.5 s pause, more talk: cut inside the pause
+        let mut b = talk(10);
+        b.extend(vec![0.0; r / 2]);
+        b.extend(talk(3));
+        let at = cut_at(&b, r).unwrap();
+        assert!((10 * r..10 * r + r / 2).contains(&at), "cut at {at}");
+        // a pause before 8 s does not count; under 15 s without a later pause: wait
+        let mut b = talk(3);
+        b.extend(vec![0.0; r]);
+        b.extend(talk(8));
+        assert_eq!(cut_at(&b, r), None);
+        // 15 s with no pause: cut at the quietest point between 8 and 15 s
+        let mut b: Vec<f32> = talk(16);
+        b[12 * r..12 * r + r / 5].iter_mut().for_each(|x| *x = 0.05);
+        let at = cut_at(&b, r).unwrap();
+        assert!((12 * r - r / 10..12 * r + r / 5).contains(&at), "cut at {at}");
+        // too little audio
+        assert_eq!(cut_at(&talk(7), r), None);
     }
 
     #[cfg(debug_assertions)]

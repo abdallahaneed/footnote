@@ -17,12 +17,12 @@ Image: S09 generated notes with source timestamps (replica/clone-screens/S09-see
 ## 3. How it works
 
 1. Open the meeting. Footnote shows today's calls from your calendar link, or start a blank note.
-2. Write what matters to you. Footnote records your microphone and the call's audio, and saves it to disk every 30 seconds.
+2. Write what matters to you. Footnote records your microphone and the call's audio, and saves it to disk every few seconds, at the pauses between sentences.
 3. Stop. The transcript and the notes are made on your Mac, with each line pointing to the moment it came from.
 
 ## 4. What is different (each from fixes.md)
 
-1. Never lose a meeting: audio is written to disk in 30-second pieces as you talk. If the app or the Mac stops, the note finishes from what was saved. (hate 1)
+1. Never lose a meeting: audio is written to disk in short pieces as you talk. If the app or the Mac stops, the note finishes from what was saved. (hate 1)
 2. See where every note is: each note shows its stage (saved, transcribing, writing, ready) and, if something fails, the reason and a Try again button. (hate 1, missing 5)
 3. Check any line: every generated line carries the time it was said; one click opens that moment in the transcript. Your own lines are marked as yours. (hate 3)
 4. No account, nothing uploaded: no sign-in, no cloud. Speech-to-text and note writing run on this Mac. (hate 2, hate 5)

@@ -20,7 +20,7 @@ Stop and resume transcription,capture,must,yes,partial,S08; build: UI and flow d
 Auto-stop on call end / 15 min silence / sleep,capture,should,yes,no,F02 edge cases
 Mic selector with Auto,capture,should,yes,partial,"S08; build: selector UI only, not wired to devices"
 Audio stays on device; user sets keep or delete after transcript,privacy,must,yes,yes,"changed by fixes.md #1; default delete after transcript (0003); S28 radio for after transcript / 7d / 30d / forever, retention job built"
-Live streaming transcript,transcript,must,yes,partial,"S08; build: UI streams scripted lines; whisper in replica-backend; backend: real transcript arrives per 30 s segment, so it lags up to ~35 s"
+Live streaming transcript,transcript,must,yes,yes,"S08; 2026-11-12: segments end at the first pause after 8 s (15 s at most); measured with real whisper on a 33 s clip replayed in real time: each line arrives 1.6-9.0 s after it was said, median 5.2 s (was up to 35 s); jobs.rs live_lag"
 Local speech-to-text,transcript,must,no,yes,"clone choice: whisper.cpp or similar; Granola uses Deepgram/AssemblyAI; backend: whisper.cpp base model, downloaded once (60 MB); e2e test passes"
 Speaker labels Me / Them,transcript,must,yes,yes,S08; build: S08 bubbles
 Named speakers for Meet / Zoom / Teams,transcript,could,yes,no,needs diarization or app UI reading
@@ -110,7 +110,7 @@ SOC 2 / HIPAA / DPA,compliance,skip,yes,skip,company certifications not features
 People and company enrichment (photos / titles / logos),people,skip,yes,skip,needs a paid data vendor
 iOS / Android / Apple Watch apps,platform,skip,yes,skip,outside chosen platforms
 Granola's built-in templates recipes and demo content,content,skip,yes,skip,their content; write our own
-Crash-safe local audio segments written during recording,capture,must,no,yes,fixes.md #1; recording failures 10 reviews; build: UI recovery on launch done; real WAV segments in replica-backend; backend: segment synced before its row; jobs survive restart; stuck notes finish on launch
+Crash-safe local audio segments written during recording,capture,must,no,yes,"fixes.md #1; recording failures 10 reviews; build: UI recovery on launch done; real WAV segments in replica-backend; backend: segment synced before its row; jobs survive restart; stuck notes finish on launch; 8-15 s segments since 2026-11-12, so a crash loses at most ~15 s"
 Re-run transcription and notes from saved audio,transcript,must,no,yes,fixes.md #1; build: Transcribe again button on fake pipeline; backend: transcript_retry
 Visible pipeline status per note with Retry on failure,enhance,must,no,yes,"fixes.md #2; review-14632129571; build: status chip on rows and notes, banner with Try again"
 Every enhanced line links to transcript timestamp and plays audio,enhance,must,no,partial,fixes.md #4; hallucination complaints 5 reviews 3 sources; build: jumps to the transcript line; audio playback needs the Rust audio_play_range; backend: sources validated in Rust; audio playback not built

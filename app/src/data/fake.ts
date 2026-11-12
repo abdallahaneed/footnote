@@ -6,7 +6,7 @@ import { clock } from "./format";
 import type { CalendarEvent, Folder, Note, Permissions, SearchHit, Segment, Settings, Template } from "./types";
 
 const DAY = 86_400_000;
-const SEG_MS = 1500; // a real segment is 30 s; shortened so the fake transcript moves
+const SEG_MS = 1500; // a real segment is 8-15 s; shortened so the fake transcript moves
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const uid = () => crypto.randomUUID();
 

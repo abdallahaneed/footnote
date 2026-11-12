@@ -489,7 +489,7 @@ mod tests {
         assert_eq!((n.status.as_str(), n.error.as_deref()), ("failed", Some("The local model did not answer.")));
         assert!(retranscribe(&c, &id).unwrap_err().to_string().contains("already deleted"));
     }
-    /// The whole path with real audio and real whisper: two channels -> 30 s segments on disk -> transcribe jobs ->
+    /// The whole path with real audio and real whisper: two channels -> 8-15 s segments on disk -> transcribe jobs ->
     /// enhance job against a stand-in Groq -> stored notes with checked sources. Needs `say` (macOS) and the
     /// 60 MB model (copied from Quietkey's folder if there, else downloaded). Run: cargo test -- --ignored e2e
     #[cfg(debug_assertions)]
@@ -550,6 +550,58 @@ mod tests {
         assert!(ai.iter().any(|ids| !ids.is_empty()));
         assert!(n.recorded_ms >= 3_000, "duration {}", n.recorded_ms);
         release_model(); // as the app does on quit; without it the test process aborts at exit
+        std::fs::remove_dir_all(data).unwrap();
+    }
+
+    /// Live transcript lag with real whisper: a ~45 s spoken clip replayed in real time as the mic. For each
+    /// transcript line, how long after it was said it reached the database. Run: cargo test -- --ignored live_lag --nocapture
+    #[cfg(debug_assertions)]
+    #[test]
+    #[ignore]
+    fn live_lag() {
+        let _one = capture::AUDIO_TEST.lock().unwrap_or_else(|e| e.into_inner());
+        let data = std::env::temp_dir().join(format!("mn-lag-{}", uid()));
+        std::fs::create_dir_all(data.join("models")).unwrap();
+        if dirs_model().exists() {
+            std::fs::copy(dirs_model(), data.join("models").join(stt::MODEL_FILE)).unwrap();
+        }
+        let text = "We need to decide the release date for version two. [[slnc 700]] QA wants at least one full week for testing. [[slnc 700]] \
+            The twentieth of November works if the build is ready by Monday. [[slnc 700]] Lena will send the new pricing page to the board on Thursday. [[slnc 700]] \
+            Marketing would like a launch post on the same day as the release. [[slnc 700]] Tom can write the first draft and share it with everyone on Monday. [[slnc 700]] \
+            The budget for ads stays at five thousand euros for this quarter. [[slnc 700]] Let us meet again next Tuesday to check where we are.";
+        let wav = data.join("talk.wav");
+        assert!(std::process::Command::new("say").args(["-r", "150", "-o", wav.to_str().unwrap(), "--data-format=LEI16@16000", text]).status().unwrap().success());
+        let secs = capture::read_wav(&wav).unwrap().len() as f64 / 16_000.0;
+        unsafe { std::env::set_var("MEETING_NOTES_TEST_MIC_WAV", &wav) };
+        let conn = crate::db::open(&data.join("app.db")).unwrap();
+        let id = notes::create(&conn, None).unwrap();
+        let core = Arc::new(Core { db: Mutex::new(conn), data: data.clone(), notify: Box::new(|| {}) });
+        let c2 = core.clone();
+        // warm whisper up first, as a running app has it loaded after the first segment
+        spawn(core.clone());
+        let started = std::time::Instant::now();
+        capture::start(&id, core.audio_dir(&id), 0, 0, None, Arc::new(move |n, s| on_segment(&c2, n, s))).unwrap();
+        core.db.lock().unwrap().execute("update notes set pipeline_status = 'recording' where id = ?1", [&id]).unwrap();
+        let mut seen = std::collections::HashMap::<String, f64>::new();
+        while started.elapsed().as_secs_f64() < secs + 25.0 {
+            let rows: Vec<(String, i64)> = {
+                let c = core.db.lock().unwrap();
+                let mut st = c.prepare("select id, end_ms from transcript_segments where note_id = ?1").unwrap();
+                st.query_map([&id], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().map(Result::unwrap).collect()
+            };
+            for (sid, end) in rows {
+                seen.entry(sid).or_insert(started.elapsed().as_secs_f64() - end as f64 / 1000.0);
+            }
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        capture::stop(&id);
+        unsafe { std::env::remove_var("MEETING_NOTES_TEST_MIC_WAV") };
+        let mut lags: Vec<f64> = seen.values().copied().collect();
+        lags.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        println!("clip {secs:.0} s, {} lines, lag min {:.1} s, median {:.1} s, max {:.1} s", lags.len(), lags[0], lags[lags.len() / 2], lags[lags.len() - 1]);
+        let first_load = lags.len() > 1; // the very first line also pays for loading whisper
+        assert!(first_load && lags[lags.len() - 2] < 20.0, "lags {lags:?}");
+        release_model();
         std::fs::remove_dir_all(data).unwrap();
     }
 
