@@ -330,7 +330,7 @@ test("S28 settings: save on their own, invalid input says why, export explains t
 
 test("S28 settings: keyboard only, change retention", async ({ page }) => {
   await open(page, "/settings/preferences");
-  await page.getByRole("combobox", { name: "Summary length" }).focus();
+  await page.getByLabel("What your notes should know").focus(); // the field right before the audio choices
   await page.keyboard.press("Tab"); // into the audio choices, on the checked one
   await expect(page.getByRole("radio", { name: /Delete once transcribed/ })).toBeFocused();
   await page.keyboard.press("ArrowDown");

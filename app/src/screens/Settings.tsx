@@ -1,6 +1,6 @@
 // S28 settings: how notes get written, what happens to audio, words to spell right, export everything.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Banner, Button, PageHeader, RadioCards, SelectMenu, SkeletonRows, TextInput } from "../ui/base";
+import { Banner, Button, PageHeader, RadioCards, SelectMenu, SkeletonRows, TextArea, TextInput } from "../ui/base";
 import { TagInput } from "../ui/notes";
 import { LoadError, Page } from "../app/Layout";
 import { go } from "../app/router";
@@ -51,6 +51,14 @@ function GroqKey({ saved, onSaved }: { saved: boolean; onSaved: (saved: boolean)
     </form>
   );
 }
+const TRANSCRIPTS: { value: string; title: string; body: string }[] = [
+  { value: "keep", title: "Keep until I delete the note", body: "" },
+  { value: "90", title: "Delete after 90 days", body: "Your notes and what was written from the call stay. Source links into the transcript stop working." },
+  { value: "365", title: "Delete after a year", body: "Same, after 365 days." },
+];
+const THEMES: { value: S["theme"]; label: string }[] = [
+  { value: "system", label: "Same as the Mac" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" },
+];
 const RETENTION: { value: S["audioRetention"]; title: string; body: string }[] = [
   { value: "delete_after_transcript", title: "Delete once transcribed", body: "Only text is kept. \"Transcribe again\" is not possible." },
   { value: "keep_7d", title: "Keep for 7 days", body: "Time to re-run a transcript that came out wrong." },
@@ -130,8 +138,32 @@ export function Settings() {
               </div>
             </Section>
 
+            <Section title="About you">
+              <p className="text-sm text-muted">Used when notes are written, so they use your name and know what matters to you. Stays on this Mac unless note writing uses Groq.</p>
+              <div className="grid gap-3 md:grid-cols-2">
+                <TextInput label="Your name" value={s.userName ?? ""} max={200} onChange={(e) => set("userName", e.target.value)} placeholder="Sam" />
+                <TextInput label="Your role" value={s.userRole ?? ""} max={200} onChange={(e) => set("userRole", e.target.value)} placeholder="Product manager" />
+              </div>
+              <TextArea label="What your notes should know" value={s.userContext ?? ""} max={2000} rows={3}
+                onChange={(e) => set("userContext", e.target.value)} placeholder="The team, products and customers you talk about most" />
+            </Section>
+
             <Section title="Audio">
               <RadioCards label="What happens to recordings" value={s.audioRetention} onChange={(v) => set("audioRetention", v)} options={RETENTION} />
+            </Section>
+
+            <Section title="Transcripts">
+              <RadioCards label="How long to keep transcripts" options={TRANSCRIPTS}
+                value={s.transcriptRetentionDays ? String(s.transcriptRetentionDays) : "keep"}
+                onChange={(v) => set("transcriptRetentionDays", v === "keep" ? null : Number(v))} />
+              <p className="text-sm text-muted">Only finished notes lose their transcript. One still waiting to be written keeps it.</p>
+            </Section>
+
+            <Section title="Appearance">
+              <div className="flex items-center gap-2 text-base">
+                <span>Theme</span>
+                <SelectMenu label="Theme" value={s.theme} onChange={(v) => set("theme", v)} options={THEMES} />
+              </div>
             </Section>
 
             <Section title="Transcription">

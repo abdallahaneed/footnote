@@ -40,6 +40,8 @@ export type Settings = {
   audioRetention: "delete_after_transcript" | "keep_7d" | "keep_30d" | "keep_forever";
   markdownMirrorDir?: string; userName?: string; userRole?: string; userContext?: string;
   jargon: string[]; languages: string[];
+  theme: "system" | "light" | "dark";
+  transcriptRetentionDays?: number | null; // null = keep until the note is deleted
 };
 
 export type Permission = "granted" | "denied" | "undetermined" | "unknown";

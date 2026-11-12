@@ -408,7 +408,7 @@ export async function chatSend(q: { scopeIds: string[] | "all"; text: string }, 
 /* Settings (S28), same checks as settings_update ------------------------------ */
 
 let settings: Settings = {
-  llmProvider: "apple", llmModel: "openai/gpt-oss-120b", summaryLength: "normal", groqKeySaved: false,
+  llmProvider: "apple", llmModel: "openai/gpt-oss-120b", summaryLength: "normal", groqKeySaved: false, theme: "system", transcriptRetentionDays: null,
   appleStatus: (new URLSearchParams(location.search).get("apple") ?? "available") as Settings["appleStatus"],
   audioRetention: "delete_after_transcript", jargon: [], languages: ["en"],
 };
@@ -417,6 +417,9 @@ export const settingsUpdate = (s: Settings) => call("settings_update", () => {
   if (!s.llmModel.trim()) throw new Error("Enter a model name.");
   if (s.llmModel.length > 200) throw new Error("Keep the model name under 200 characters.");
   if (s.jargon.length > 30 || s.jargon.some((j) => j.length > 60)) throw new Error("Up to 30 words, each under 60 characters.");
+  if ((s.userContext ?? "").length > 2000 || (s.userName ?? "").length > 200 || (s.userRole ?? "").length > 200) throw new Error("Some settings are too long.");
+  const d = s.transcriptRetentionDays;
+  if (d != null && !(d >= 1 && d <= 3650)) throw new Error("Pick how long to keep transcripts.");
   settings = { ...s, llmModel: s.llmModel.trim(), appleStatus: settings.appleStatus, groqKeySaved: settings.groqKeySaved };
   commit();
 });

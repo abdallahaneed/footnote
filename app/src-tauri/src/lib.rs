@@ -382,13 +382,16 @@ struct Settings {
     user_context: Option<String>,
     jargon: Vec<String>,
     languages: Vec<String>,
+    theme: String,
+    /// None = keep transcripts until the note is deleted.
+    transcript_retention_days: Option<i64>,
 }
 
 #[tauri::command(async)]
 fn settings_get(st: State<St>) -> R<Settings> {
     read(&st, |c| {
         Ok(c.query_row(
-            "select llm_provider, llm_model, summary_length, audio_retention, markdown_mirror_dir, user_name, user_role, user_context, jargon, languages from settings",
+            "select llm_provider, llm_model, summary_length, audio_retention, markdown_mirror_dir, user_name, user_role, user_context, jargon, languages, theme, transcript_retention_days from settings",
             [],
             |r| {
                 let (j, l): (String, String) = (r.get(8)?, r.get(9)?);
@@ -397,6 +400,7 @@ fn settings_get(st: State<St>) -> R<Settings> {
                     markdown_mirror_dir: r.get(4)?, user_name: r.get(5)?, user_role: r.get(6)?, user_context: r.get(7)?,
                     apple_status: apple::status().into(), groq_key_saved: enhance::groq_key().is_some_and(|k| !k.is_empty()),
                     jargon: serde_json::from_str(&j).unwrap_or_default(), languages: serde_json::from_str(&l).unwrap_or_default(),
+                    theme: r.get(10)?, transcript_retention_days: r.get(11)?,
                 })
             },
         )?)
@@ -418,6 +422,9 @@ fn settings_update(st: State<St>, s: Settings) -> R<()> {
     if s.languages.len() > 10 || !short(&s.user_context, 2000) || !short(&s.user_name, 200) || !short(&s.user_role, 200) {
         return Err("Some settings are too long.".into());
     }
+    if s.transcript_retention_days.is_some_and(|d| !(1..=3650).contains(&d)) {
+        return Err("Pick how long to keep transcripts.".into());
+    }
     if let Some(d) = &s.markdown_mirror_dir {
         if !std::path::Path::new(d).is_dir() {
             return Err("That folder does not exist.".into());
@@ -427,9 +434,11 @@ fn settings_update(st: State<St>, s: Settings) -> R<()> {
     write(&st, |c| {
         c.execute(
             "update settings set llm_provider = ?1, llm_model = ?2, summary_length = ?3, audio_retention = ?4, markdown_mirror_dir = ?5,
-               user_name = ?6, user_role = ?7, user_context = ?8, jargon = ?9, languages = ?10, updated_at = ?11 where id = 1",
+               user_name = ?6, user_role = ?7, user_context = ?8, jargon = ?9, languages = ?10, updated_at = ?11, theme = ?12,
+               transcript_retention_days = ?13 where id = 1",
             params![s.llm_provider, s.llm_model.trim(), s.summary_length, s.audio_retention, s.markdown_mirror_dir,
-                s.user_name, s.user_role, s.user_context, serde_json::to_string(&s.jargon)?, serde_json::to_string(&s.languages)?, now_ms()],
+                s.user_name, s.user_role, s.user_context, serde_json::to_string(&s.jargon)?, serde_json::to_string(&s.languages)?, now_ms(), s.theme,
+                s.transcript_retention_days],
         )?;
         Ok(())
     })

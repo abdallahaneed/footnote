@@ -881,3 +881,37 @@ test("S02-E6 at 390px a long calendar name wraps and the switch and Remove stay 
   expect(box!.x + box!.width).toBeLessThanOrEqual(390);
   await page.screenshot({ path: "../replica/clone-screens/S02-390.png" });
 });
+
+/* S28 about you, transcripts, theme */
+
+test("S28-E9 profile, transcript keeping and theme save on their own and come back", async ({ page }) => {
+  await open(page, "/settings/preferences");
+  await page.getByLabel("Your name").fill("Sam");
+  await page.getByLabel("Your role").fill("Engineering lead");
+  await page.getByLabel("What your notes should know").fill("We build Footnote. Lena runs sales, Tom runs marketing. Ärger mit Umlauten 🎉");
+  await page.getByRole("radio", { name: /Delete after 90 days/ }).click();
+  await page.getByRole("combobox", { name: "Theme" }).click();
+  await page.getByRole("option", { name: "Dark" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.getByText("Saved.")).toBeVisible();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Home" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark"); // whole app, not just Settings
+  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Settings" }).click();
+  await expect(page.getByLabel("Your role")).toHaveValue("Engineering lead");
+  await expect(page.getByLabel("What your notes should know")).toHaveValue(/Umlauten 🎉/);
+  await expect(page.getByRole("radio", { name: /Delete after 90 days/ })).toBeChecked();
+  const axe = await new AxeBuilder({ page }).analyze();
+  expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
+  await page.screenshot({ path: "../replica/clone-screens/S28-about-dark.png", fullPage: true });
+  await page.getByRole("combobox", { name: "Theme" }).click();
+  await page.getByRole("option", { name: "Same as the Mac" }).click();
+  await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.+/);
+});
+
+test("S28-E10 notes context over 2,000 characters says why and does not save", async ({ page }) => {
+  await open(page, "/settings/preferences");
+  await page.getByLabel("What your notes should know").fill("x".repeat(2001));
+  await expect(page.getByRole("alert")).toContainText("too long");
+  await page.getByLabel("What your notes should know").fill("short again");
+  await expect(page.getByText("Saved.")).toBeVisible();
+});

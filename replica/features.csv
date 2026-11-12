@@ -69,11 +69,11 @@ Sidebar toggle shortcut,organise,should,yes,yes,⌘S / Ctrl+S; build: Cmd/Ctrl+S
 Command palette ⌘K,search,must,yes,yes,S19; build: S19
 Fast full-text search over notes and transcripts,search,must,yes,yes,"S19; SQLite FTS5 in the core: word-start matches, accents ignored, every word required, title hits first, snippet says where it matched; triggers mark changed notes and the index catches up before each search; trashed notes left out"
 Offline access,platform,must,yes,yes,local-first by default; build: all local; storage is browser storage until SQLite; backend: SQLite in the app-data folder; only calendar sync needs the network
-Dark mode,platform,should,yes,partial,changelog Nov 2024; build: follows the system; no manual switch yet (S28)
+Dark mode,platform,should,yes,yes,"S28 Appearance: same as the Mac, light or dark, applied to every window including pop-ups (2026-11-12)"
 Add images to a note,notes,should,yes,no,changelog Nov 2024
 Upload files to a note,notes,could,yes,no,changelog Jun 2025
 Trash with restore and 30-day purge,notes,must,yes,yes,"S22; build: S22, purge on launch; backend: real: purge job also removes audio files"
-Transcript auto-deletion setting,privacy,should,yes,partial,S28; backend: retention job built; no settings screen
+Transcript auto-deletion setting,privacy,should,yes,yes,"S28: keep, 90 days or a year; only finished notes lose their transcript, one still waiting to be written keeps it (2026-11-12)"
 Meeting notification 1 min before event,detect,must,yes,partial,"S20 built 2026-11-08: Rust checks every 15 s for events starting within 75 s with 2+ invitees from an enabled calendar, no recording note; own always-on-top window top right; selection unit-tested; not yet seen fire from a real calendar; 2026-11-12: pop-ups take the first free slot so they never overlap; Control-Option-N (registered only while a pop-up is open) focuses the newest; Esc dismisses"
 Detect ad-hoc calls from mic use,detect,should,yes,no,S20 Meeting / Huddle / Call detected
 Per-app notification toggles,detect,should,yes,no,S29
@@ -94,7 +94,7 @@ Zapier / generic webhook on note generated,integrations,could,yes,no,webhook eve
 Local MCP server for AI clients,integrations,should,yes,no,S32; stdio MCP needs no hosted server
 Local read-only API,integrations,could,yes,no,mirror their v1 notes/transcript endpoints shape
 Voice typing in any app,voice,should,yes,no,S37; reuse Quietkey
-Profile context for better notes,settings,should,yes,no,S27
+Profile context for better notes,settings,should,yes,yes,"S27/S28 About you: name, role and up to 2,000 characters of context, sent with every note-writing request (2026-11-12)"
 Network check in troubleshooting,settings,could,yes,no,S33; less relevant when local
 Model training opt-out,settings,skip,yes,skip,no training happens in the clone
 Workspaces with members and roles,team,could,yes,no,S30 S35; needs self-hosted sync server

@@ -469,7 +469,11 @@ fn maintenance(core: &Core) -> anyhow::Result<()> {
     }
     let days: Option<i64> = conn.query_row("select transcript_retention_days from settings", [], |r| r.get(0))?;
     if let Some(d) = days {
-        conn.execute("delete from transcript_segments where created_at < ?1", [now_ms() - d * 86_400_000])?;
+        // only notes that are written: a transcript still waiting for its notes is never thrown away
+        conn.execute(
+            "delete from transcript_segments where created_at < ?1 and note_id in (select id from notes where pipeline_status = 'done')",
+            [now_ms() - d * 86_400_000],
+        )?;
     }
     Ok(())
 }
@@ -481,6 +485,27 @@ mod tests {
 
     fn status(c: &Connection, id: &str) -> String {
         c.query_row("select pipeline_status from notes where id = ?1", [id], |r| r.get(0)).unwrap()
+    }
+
+    #[test]
+    fn transcript_retention_keeps_notes_that_are_not_written_yet() {
+        let c = mem();
+        let core = Core { db: Mutex::new(c), data: std::env::temp_dir(), notify: Box::new(|| {}) };
+        {
+            let c = core.db.lock().unwrap();
+            let (done, waiting) = (notes::create(&c, None).unwrap(), notes::create(&c, None).unwrap());
+            c.execute("update notes set pipeline_status = 'done' where id = ?1", [&done]).unwrap();
+            c.execute("update notes set pipeline_status = 'failed', pipeline_error = 'x' where id = ?1", [&waiting]).unwrap();
+            for (i, n) in [&done, &waiting].iter().enumerate() {
+                c.execute("insert into transcript_segments (id, note_id, source, attribution, text, start_ms, end_ms, created_at) values (?1, ?2, 'microphone', 'me', 'old line', 0, 1, 0)",
+                    params![format!("t{i}"), n]).unwrap();
+            }
+            c.execute("update settings set transcript_retention_days = 30", []).unwrap();
+        }
+        maintenance(&core).unwrap();
+        let c = core.db.lock().unwrap();
+        let left: Vec<String> = c.prepare("select id from transcript_segments").unwrap().query_map([], |r| r.get(0)).unwrap().map(Result::unwrap).collect();
+        assert_eq!(left, ["t1"], "the written note lost its old transcript, the failed one kept it");
     }
 
     #[test]

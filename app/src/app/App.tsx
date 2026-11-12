@@ -14,6 +14,8 @@ import { NotFound, STUBS, Stub } from "../screens/Stub";
 import { Sidebar } from "./Sidebar";
 import { Palette } from "./Palette";
 import { match, useRoute } from "./router";
+import { settingsGet } from "../data/api";
+import { useLive } from "../data/store";
 
 const wide = () => matchMedia("(min-width: 768px)").matches;
 
@@ -31,7 +33,18 @@ function Screen({ path }: { path: string }) {
   return stub ? <Stub s={stub} /> : <NotFound />;
 }
 
+// S28 theme: "system" leaves it to the Mac (prefers-color-scheme in tokens.css).
+function useTheme() {
+  const s = useLive(() => settingsGet(), []);
+  const theme = s.data?.theme ?? "system";
+  useEffect(() => {
+    if (theme === "system") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+}
+
 export function App() {
+  useTheme();
   const path = useRoute();
   const toast = match("/toast/:id", path);
   return toast ? <MeetingPopup key={toast.id} eventId={toast.id} /> : <Main path={path} />;
