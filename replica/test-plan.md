@@ -1,6 +1,6 @@
 # Test plan: meeting-notes clone
 
-Build: dd0bbe2, second round on 797c5af (S03, S28, export), third on b721afe (S20), fourth on 8161809 (S07 rich text editor), fifth on b2e0a57 (S19 FTS5 search, folder icons), plus the fixes in bugs.md  Date: 2026-11-08  Env: local, `npm run dev` (fake data layer, seed data), Chromium 1440px and 390px
+Build: dd0bbe2, second round on 797c5af (S03, S28, export), third on b721afe (S20), fourth on 8161809 (S07 rich text editor), fifth on b2e0a57 (S19 FTS5 search, folder icons), sixth on b9e32f7 (Apple and Groq note writing, migration 0005, 2026-11-12), plus the fixes in bugs.md  Date: 2026-11-08  Env: local, `npm run dev` (fake data layer, seed data), Chromium 1440px and 390px
 Specs: app/e2e/app.spec.ts (happy paths, axe, widths), app/e2e/edge.spec.ts (edge and negative cases), app/e2e/design.spec.ts (components). Every spec fails on page errors and console errors; edge.spec.ts also fails on any 5xx response.
 
 Scope: milestone 1 screens that are built (S02 calendar links, S05-S10, S13, S19, S22, S23). F01 sign-in/permissions, F08, F10-F12, F15-F17 hit "Not built yet" stubs and are blocked, not failed.
@@ -98,6 +98,24 @@ Scope: milestone 1 screens that are built (S02 calendar links, S05-S10, S13, S19
 | F02-U1 | | unit: who gets a pop-up | Rust notify::due: 1 invitee, later, cancelled, just started, long started, already shown, already recording, calendar off | only the right meetings | cargo test | pass |
 | F02-R1 | | real: desktop app, test meeting in 60 s with 2 invitees | insert into the dev database, wait | undecorated always-on-top window top right with title, time, invitees | manual (done 2026-11-08) | pass on the third try, see to-check 7 |
 | F02-M2 | | real: click Start notes and Dismiss in the real window | | recording starts, link opens, main window on the note; Dismiss closes | manual | to run (System Events could not click without accessibility permission) |
+| LLM-H1 | F09 notes | happy | Apple's model writes a 40-line meeting | template headings, own line kept, every source exists | cargo ignored apple_writes_notes | pass, 13 s |
+| LLM-H2 | F09 notes | happy | Groq request path against a stand-in server | stored notes with checked sources | cargo talks_to_groq | pass |
+| LLM-H3 | F06 chat | happy | Groq streams chat tokens | pieces arrive in order, joined answer | cargo streams_from_groq | pass |
+| LLM-E1 | F09 notes | edge: one-hour meeting (600 lines, ~50k characters) on Apple | | notes written, no context error | cargo ignored apple_limits_one_hour | fail before the fix (context error after 305 s, BUG-013); pass after, 170 s |
+| LLM-E2 | F09 notes | edge: own notes near 2,000 characters plus a full window on Apple | | notes written | cargo ignored apple_limits_own_notes_and_window | pass |
+| LLM-E3 | F09 notes | edge: German transcript on Apple | | German notes, sources checked | cargo ignored apple_limits_german | pass |
+| LLM-E4 | F06 chat | edge: closing chat mid-answer on Apple | stop after 3 pieces | stops at once, no hang | cargo ignored apple_limits_stop_early | pass, 2.7 s |
+| LLM-E5 | F09 notes | edge: Groq free limit hit (429, retry-after 1) | | waits, then answers | cargo groq_waits_on_the_free_limit | pass |
+| LLM-E6 | F06 chat | edge: Groq stream ends empty or with an error event | | readable error, not an empty answer | cargo streams_from_groq | pass after hardening |
+| LLM-N1 | F09 notes | negative: no key, wrong key (401), retired model (400), offline | | "Add your Groq API key", "did not accept the API key", "no longer offers the model", "Could not reach Groq"; the first three are not retried | cargo talks_to_groq | pass |
+| LLM-N2 | F09 notes | negative: note writing set to Transcript only | | "turned off in Settings" | cargo talks_to_groq | pass |
+| MIG-H1 | upgrade | happy: migration 0005 on a copy of the real dev database | | provider ollama becomes apple, every other setting kept, foreign keys and integrity ok | sqlite3 by hand | pass |
+| S28-H2 | settings | happy: Apple default, switch to Groq, model name, save key, Transcript only, come back | | all saved, key shown as saved, never shown again | e2e app | pass |
+| S28-N2 | settings | negative: Apple Intelligence off | ?apple=not_enabled | reason shown, Groq offered | e2e app | pass |
+| S28-E6 | settings | edge: 390px with Groq open | | no sideways scroll, Save key on screen | e2e edge | pass |
+| S28-E7 | settings | edge: Mac that cannot run Apple's model, keyboard only, key with spaces around it | ?apple=old_macos | option disabled with reason; Groq picked with Space; key trimmed and saved; axe clean | e2e edge | pass |
+| S28-E8 | settings | edge: Remove key, leave, come back | | key field shown again | e2e edge | pass |
+| S28-N3 | settings | negative: key with a space inside, empty model name, 201-character model name | | "does not look like a Groq API key", "Enter a model name", length message | e2e app + edge | pass |
 | X-H1 | all screens | a11y and widths | 6 screens x 1440/390 x light/dark | no serious axe issues, no sideways scroll | e2e app | pass |
 | X-E1 | | edge: phone width, keyboard only | ⌘K, New note, type | works, axe clean | e2e edge | pass |
 | X-N1 | | negative: core unreachable | ?fail=notes_list | error with Try again | e2e app | pass |
@@ -107,7 +125,7 @@ Scope: milestone 1 screens that are built (S02 calendar links, S05-S10, S13, S19
 Not automatable from Playwright because the browser run uses the fake layer. Run these by hand and report back:
 
 1. F01: grant mic and system audio, deny one, recover via System Settings.
-2. F02: a real 5-minute call. Transcript arrives, Stop, notes generate with Ollama running; repeat with Ollama stopped (banner, then Try again after starting it).
+2. F02: a real 5-minute call. Transcript arrives, Stop, notes generate with Apple's built-in model; then switch to Groq with your own key and press Regenerate; then turn Wi-Fi off and regenerate (banner "Could not reach Groq", Try again works once online).
 3. F02: close the app mid-recording, reopen: the note finishes from saved audio.
 4. F02: system audio from Zoom/Meet as "them" in an interview; echo filter keeps your voice out of their side.
 5. Email to attendees opens the mail app with subject and body; Copy as Markdown pastes cleanly.
@@ -129,3 +147,6 @@ Not automatable from Playwright because the browser run uses the fake layer. Run
 10. The pop-up says "Starting now" from about a minute before the start.
 11. Whether WKWebView fires pagehide or visibilitychange when the Tauri window is closed or the app quits. The BUG-010 fix relies on it; checked in Chromium only (manual pass item 7).
 12. Notes saved before the editor, with single line breaks, are rewritten with Markdown hard breaks ("two spaces, newline") on their next edit. Same text, slightly different file in exports.
+13. Groq's free-tier limits are not written down on their docs page. A day of long meetings could run out of daily tokens; the message then says to try again in a few minutes, which may be wrong for a daily limit.
+14. In dev builds macOS may ask for Keychain access after every rebuild, because the unsigned app changes. Check that a signed build asks once at most.
+15. Chat on Apple's model sees about 4,000 characters of notes, so in a long meeting it reads the written notes but only the start of the transcript. Answers about the end of a long meeting may say the notes do not cover it.

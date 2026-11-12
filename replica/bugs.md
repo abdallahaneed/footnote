@@ -207,3 +207,28 @@ Actual: nothing happens; the dialog stays open.
 Evidence: test "F09-E2 folder dialog: Cancel keeps the old icon; Enter in the name saves the chosen icon" (edge.spec.ts), failed before the fix.
 Suspected cause: the form has two text fields and its Save button sits in the dialog footer, outside the form. Browsers only submit on Enter without a submit button when there is a single field. Present since the description field was added on 2026-11-07, not caused by the icon picker. Fix: Save is a submit button linked with form=, and save ignores a second call while busy.
 Status: fixed in bea0c01
+
+## Round 6: Apple and Groq note writing (b9e32f7, 2026-11-12)
+
+Run on b9e32f7 with Apple's real on-device model (macOS 27.0.1, Apple Silicon) for Apple cases, a stand-in HTTP server for Groq, and Chromium for S28.
+
+### BUG-013: a one-hour meeting fails on Apple's model with a context error
+
+- Severity: S2 (no notes for long meetings with the default provider; the workaround, Groq, sends the transcript off the Mac)
+- Flow / case: F09 / LLM-E1
+- Screen: S09
+- Build: b9e32f7  Device: macOS 27.0.1, Apple Silicon
+
+Steps
+1. Note writing set to Built into your Mac.
+2. A meeting with 600 transcript lines (about 50,000 characters, an hour of talk).
+3. Generate notes.
+
+Expected: notes written, maybe slowly.
+Actual: after 305 s the note fails with "Apple's built-in model failed: The session's transcript exceeded the model's context size."
+Evidence: test "apple_limits_one_hour" (enhance.rs, ignored, real model)
+Cause: windows were sized in characters only (6,000) and the answer had no cap, but Apple's 4,096-token context counts the answer too, and [S#] numbers and German words take more tokens per character. The final request was never checked before sending.
+Fix: answers capped at 1,000 tokens; each final request is counted in tokens before sending (exact from macOS 26.4, 3 characters per token before) and condensed again until it fits; windows are 4,000 characters; a request that still cannot fit after 3 rounds fails at once with a clear message instead of after minutes. The context error from Swift now also maps to a readable message.
+Status: fixed in 8fa9ea7
+
+Hardening without a reproduced bug: a Groq chat stream that ends without text, or with an error event, now gives a readable error instead of an empty answer (test streams_from_groq).
