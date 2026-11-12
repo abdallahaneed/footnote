@@ -78,6 +78,18 @@ fn calendar_add_source(st: State<St>, ics_url: String) -> R<String> {
 }
 
 #[tauri::command(async)]
+fn calendar_source_set_enabled(st: State<St>, id: String, enabled: bool) -> R<()> {
+    check_id(&id)?;
+    write(&st, |c| {
+        calendar::set_enabled(c, &id, enabled)?;
+        if enabled {
+            jobs::enqueue(c, "calendar_sync", None, serde_json::json!({ "source": id }), Some(format!("calendar_sync:{id}")))?;
+        }
+        Ok(())
+    })
+}
+
+#[tauri::command(async)]
 fn calendar_source_delete(st: State<St>, id: String) -> R<()> {
     check_id(&id)?;
     write(&st, |c| Ok(c.execute("delete from calendar_sources where id = ?1", [&id]).map(|_| ())?))
@@ -618,7 +630,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             search_notes, groq_key_set,
-            calendar_upcoming, calendar_sources_list, calendar_add_source, calendar_source_delete,
+            calendar_upcoming, calendar_sources_list, calendar_add_source, calendar_source_delete, calendar_source_set_enabled,
             note_create, note_open_for_event, notes_list, note_get, note_update_own,
             recording_start, recording_stop, generate_notes,
             transcript_delete_segment, transcript_copy_all, transcript_retry,

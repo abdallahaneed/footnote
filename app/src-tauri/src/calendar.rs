@@ -63,6 +63,22 @@ fn video_link(text: &str) -> Option<String> {
         .map(str::to_string)
 }
 
+/// The calendar's own name (X-WR-CALNAME), so two links from one provider are not both called "calendar.google.com".
+pub fn cal_name(ics: &str) -> Option<String> {
+    let line = unfold(ics).into_iter().take_while(|l| l != "BEGIN:VEVENT").find(|l| l.starts_with("X-WR-CALNAME"))?;
+    let raw = line.split_once(':')?.1;
+    let name = raw.replace("\\,", ",").replace("\\;", ";").replace("\\n", " ").replace("\\N", " ").replace("\\\\", "\\");
+    let name: String = name.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(100).collect();
+    (!name.is_empty()).then_some(name)
+}
+
+/// Turns a calendar's meetings and pop-ups on or off; its events stay stored.
+pub fn set_enabled(conn: &Connection, id: &str, enabled: bool) -> anyhow::Result<()> {
+    let n = conn.execute("update calendar_sources set enabled = ?2, updated_at = ?3 where id = ?1", params![id, enabled as i64, now_ms()])?;
+    anyhow::ensure!(n == 1, "This calendar was removed.");
+    Ok(())
+}
+
 /// Events overlapping [from, to), recurring ones expanded.
 // shortcut: moved or edited single instances of a series (RECURRENCE-ID) show at their original time; handle them if people report it.
 pub fn parse(ics: &str, from: i64, to: i64) -> Vec<Ev> {
@@ -223,14 +239,17 @@ pub struct Source {
     #[serde(skip_serializing_if = "Option::is_none")]
     last_error: Option<String>,
     events: i64,
+    enabled: bool,
 }
 
 pub fn sources(conn: &Connection) -> anyhow::Result<Vec<Source>> {
     let mut st = conn.prepare(
-        "select s.id, s.label, s.last_sync_at, s.last_error, (select count(*) from calendar_events e where e.source_id = s.id)
+        "select s.id, s.label, s.last_sync_at, s.last_error, (select count(*) from calendar_events e where e.source_id = s.id), s.enabled
          from calendar_sources s order by s.created_at",
     )?;
-    let rows = st.query_map([], |r| Ok(Source { id: r.get(0)?, label: r.get(1)?, last_sync_at: r.get(2)?, last_error: r.get(3)?, events: r.get(4)? }))?;
+    let rows = st.query_map([], |r| {
+        Ok(Source { id: r.get(0)?, label: r.get(1)?, last_sync_at: r.get(2)?, last_error: r.get(3)?, events: r.get(4)?, enabled: r.get::<_, i64>(5)? == 1 })
+    })?;
     Ok(rows.collect::<Result<_, _>>()?)
 }
 
@@ -263,6 +282,29 @@ DESCRIPTION:Join at https://meet.google.com/abc-defg-hij please\r\nEND:VEVENT\r\
 BEGIN:VEVENT\r\nUID:one\r\nSUMMARY:Supplier call with a really long title that goes on and o\r\n n\r\n\
 DTSTART:20261105T130000Z\r\nDTEND:20261105T134500Z\r\nSTATUS:CANCELLED\r\nEND:VEVENT\r\n\
 BEGIN:VEVENT\r\nUID:allday\r\nSUMMARY:Holiday\r\nDTSTART;VALUE=DATE:20261106\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+    #[test]
+    fn reads_the_calendar_name_and_turns_calendars_off() {
+        let ics = "BEGIN:VCALENDAR\r\nX-WR-CALNAME:Hiring\\, EMEA\r\nBEGIN:VEVENT\r\nX-WR-CALNAME:not this\r\nEND:VEVENT\r\n";
+        assert_eq!(cal_name(ics).as_deref(), Some("Hiring, EMEA"));
+        assert_eq!(cal_name("BEGIN:VCALENDAR\r\nX-WR-CALNAME: \r\n"), None);
+        assert_eq!(cal_name("BEGIN:VCALENDAR\r\nX-WR-CALNAME;VALUE=TEXT:Team\r\n").as_deref(), Some("Team"));
+        assert_eq!(cal_name(&format!("X-WR-CALNAME:{}", "x".repeat(300))).map(|n| n.len()), Some(100));
+
+        let c = crate::db::mem();
+        let id = add_source(&c, "https://calendar.example.test/a.ics").unwrap();
+        let now = now_ms();
+        c.execute("insert into calendar_events (id, source_id, provider_event_id, title, invitees, start_at, end_at, cancelled, created_at, updated_at)
+                   values ('e', ?1, 'e', 'Sync', '[]', ?2, ?2 + 1800000, 0, 0, 0)", params![id, now + 3_600_000]).unwrap();
+        assert_eq!(upcoming(&c, now, 2).unwrap().len(), 1);
+        set_enabled(&c, &id, false).unwrap();
+        assert!(upcoming(&c, now, 2).unwrap().is_empty(), "off: no meetings on Home");
+        assert!(!sources(&c).unwrap()[0].enabled);
+        assert_eq!(sources(&c).unwrap()[0].events, 1, "events kept for when it is turned back on");
+        set_enabled(&c, &id, true).unwrap();
+        assert_eq!(upcoming(&c, now, 2).unwrap().len(), 1);
+        assert!(set_enabled(&c, "gone", true).is_err());
+    }
 
     #[test]
     fn parses_recurring_events_across_dst() {

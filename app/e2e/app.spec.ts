@@ -223,7 +223,7 @@ test("calendars: link is validated, then listed and removable", async ({ page })
   await box.fill("not a link");
   await page.getByRole("button", { name: "Add calendar" }).click();
   await expect(page.getByText(/starts with https/)).toBeVisible();
-  await box.fill("webcal://calendar.example.test/me.ics");
+  await box.fill("webcal://calendar.example.test/basic.ics"); // a file without its own name keeps the host
   await page.getByRole("button", { name: "Add calendar" }).click();
   await expect(page.getByText("calendar.example.test")).toBeVisible();
   expect(await serious(page)).toEqual([]);

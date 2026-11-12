@@ -838,3 +838,46 @@ test("S20-E6 Esc dismisses the pop-up without a note; Tab reaches Start notes", 
   await expect(page).toHaveURL(/#\/$/);
   await expect(page.getByRole("button", { name: /Design review/ })).toHaveCount(1);
 });
+
+/* S02 choosing calendars */
+
+test("S02-E5 each calendar shows its own name and can be switched off and on, by keyboard too", async ({ page }) => {
+  await open(page, "/welcome/calendar");
+  const box = page.getByLabel("Calendar link (ICS)");
+  await box.fill("https://calendar.example.test/hiring.ics");
+  await page.getByRole("button", { name: "Add calendar" }).click();
+  await box.fill("https://calendar.example.test/team.ics"); // typed while the first is still being added
+  await expect(box).toHaveValue("https://calendar.example.test/team.ics");
+  await expect(page.getByRole("switch", { name: "Hiring" })).toBeVisible();
+  await expect(box).toHaveValue("https://calendar.example.test/team.ics", { timeout: 1000 });
+  await page.getByRole("button", { name: "Add calendar" }).click();
+  const hiring = page.getByRole("switch", { name: "Hiring" });
+  await expect(hiring).toBeChecked();
+  await expect(page.getByRole("switch", { name: "Team" })).toBeChecked();
+  await hiring.click();
+  await expect(hiring).not.toBeChecked();
+  await expect(page.getByText("Off: its meetings and pop-ups are hidden.")).toHaveCount(1);
+  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Home" }).click();
+  await page.goBack();
+  await expect(page.getByRole("switch", { name: "Hiring" })).not.toBeChecked();
+  await expect(page.getByRole("switch", { name: "Team" })).toBeChecked();
+  await page.getByRole("switch", { name: "Hiring" }).focus();
+  await page.keyboard.press("Space");
+  await expect(page.getByRole("switch", { name: "Hiring" })).toBeChecked();
+  await expect(page.getByText("Off: its meetings")).toHaveCount(0);
+  const axe = await new AxeBuilder({ page }).analyze();
+  expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
+});
+
+test("S02-E6 at 390px a long calendar name wraps and the switch and Remove stay on screen", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page, "/welcome/calendar");
+  await page.getByLabel("Calendar link (ICS)").fill("https://calendar.example.test/quarterly-planning-with-the-regional-sales-and-marketing-leads.ics");
+  await page.getByRole("button", { name: "Add calendar" }).click();
+  const sw = page.getByRole("switch");
+  await expect(sw).toBeVisible();
+  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth)).toBeLessThanOrEqual(390);
+  const box = await page.getByRole("button", { name: /^Remove / }).boundingBox();
+  expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: "../replica/clone-screens/S02-390.png" });
+});

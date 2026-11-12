@@ -43,18 +43,27 @@ export const calendarUpcoming = (days = 14) => call("calendar_upcoming", () => {
 });
 
 // Calendar links (S02). The fake keeps them in memory and adds no events.
-type CalendarSource = { id: string; label: string; lastSyncAt?: number; lastError?: string; events: number };
+type CalendarSource = { id: string; label: string; lastSyncAt?: number; lastError?: string; events: number; enabled: boolean };
 let sources: CalendarSource[] = [];
 export const calendarSourcesList = () => call("calendar_sources_list", () => sources);
 export const calendarAddSource = (icsUrl: string) => call("calendar_add_source", () => {
   const u = icsUrl.trim().replace(/^webcal:\/\//, "https://");
   if (!/^https?:\/\/\S+$/.test(u)) throw new Error("Paste the calendar's ICS link. It starts with https:// or webcal://.");
-  const s: CalendarSource = { id: uid(), label: new URL(u).host, events: 0, lastSyncAt: Date.now() };
+  // ".../hiring.ics" stands in for a calendar file whose name (X-WR-CALNAME) is "Hiring"
+  const file = new URL(u).pathname.split("/").pop()?.replace(/\.ics$/i, "") ?? "";
+  const label = file && file !== "basic" ? file.charAt(0).toUpperCase() + file.slice(1) : new URL(u).host;
+  const s: CalendarSource = { id: uid(), label, events: 0, lastSyncAt: Date.now(), enabled: true };
   sources = [...sources, s];
   commit();
   return s.id;
 });
 export const calendarSourceDelete = (id: string) => call("calendar_source_delete", () => { sources = sources.filter((s) => s.id !== id); commit(); });
+export const calendarSourceSetEnabled = (id: string, enabled: boolean) => call("calendar_source_set_enabled", () => {
+  const s = sources.find((x) => x.id === id);
+  if (!s) throw new Error("This calendar was removed.");
+  s.enabled = enabled;
+  commit();
+});
 
 /* Notes ------------------------------------------------------------------- */
 

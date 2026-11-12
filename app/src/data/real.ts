@@ -40,10 +40,11 @@ export const noteEmailDraft = (id: string) => invoke<string>("note_email_draft",
 export const searchIndex = () => invoke<{ notes: { id: string; title: string; createdAt: number }[]; folders: Folder[] }>("search");
 export const searchNotes = (q: string) => invoke<SearchHit[]>("search_notes", { q });
 
-export type CalendarSource = { id: string; label: string; lastSyncAt?: number; lastError?: string; events: number };
+export type CalendarSource = { id: string; label: string; lastSyncAt?: number; lastError?: string; events: number; enabled: boolean };
 export const calendarSourcesList = () => invoke<CalendarSource[]>("calendar_sources_list");
 export const calendarAddSource = (icsUrl: string) => invoke<string>("calendar_add_source", { icsUrl });
 export const calendarSourceDelete = (id: string) => invoke<void>("calendar_source_delete", { id });
+export const calendarSourceSetEnabled = (id: string, enabled: boolean) => invoke<void>("calendar_source_set_enabled", { id, enabled });
 
 // Tokens arrive over a channel. Stopping only stops showing them.
 // shortcut: the core keeps generating until the model finishes; add a chat_cancel command if that wastes time.

@@ -232,3 +232,22 @@ Fix: answers capped at 1,000 tokens; each final request is counted in tokens bef
 Status: fixed in 8fa9ea7
 
 Hardening without a reproduced bug: a Groq chat stream that ends without text, or with an error event, now gives a readable error instead of an empty answer (test streams_from_groq).
+
+### BUG-014: a second calendar link typed while the first is being added is wiped
+
+- Severity: S3 (typed text lost, retyping it works)
+- Flow / case: F01 / S02-E5
+- Screen: S02
+- Build: c683f0c  Browser: Chromium, 1440px
+
+Steps
+1. Calendars, paste a link, Add calendar.
+2. Paste a second link at once, before the first appears in the list.
+
+Expected: the second link stays in the box.
+Actual: the box is emptied when the first add finishes.
+Evidence: test "S02-E5 each calendar shows its own name and can be switched off and on, by keyboard too" (edge.spec.ts)
+Cause: the box was cleared after every add, whatever it held by then.
+Fix: clear it only if it still holds the link that was added.
+Status: fixed in FIXCOMMIT
+

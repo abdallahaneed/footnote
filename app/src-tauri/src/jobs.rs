@@ -425,11 +425,14 @@ fn sync_calendar(core: &Core, job: &Job) -> anyhow::Result<()> {
     let url: Option<String> = core.db.lock().unwrap().query_row("select ics_url from calendar_sources where id = ?1 and enabled = 1", [&src], |r| r.get(0)).optional()?.flatten();
     let Some(url) = url else { return Ok(()) };
     let (from, to) = (now_ms() - 86_400_000, now_ms() + 30 * 86_400_000);
-    let result = crate::calendar::fetch(&url).map(|ics| crate::calendar::parse(&ics, from, to));
+    let result = crate::calendar::fetch(&url).map(|ics| (crate::calendar::cal_name(&ics), crate::calendar::parse(&ics, from, to)));
     let conn = core.db.lock().unwrap();
     match result {
-        Ok(evs) => {
+        Ok((name, evs)) => {
             crate::calendar::store(&conn, &src, &evs, from, to)?;
+            if let Some(name) = name {
+                conn.execute("update calendar_sources set label = ?2 where id = ?1", params![src, name])?;
+            }
             Ok(())
         }
         Err(e) => {
